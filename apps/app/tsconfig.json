@@ -1,0 +1,6 @@
+{
+  "extends": "@found-poems/tsconfig/tsconfig.react.json",
+  "compilerOptions": {
+    "baseUrl": "./src"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "found-poems",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Found Poems monorepo (apps, site, and Supabase orchestration)",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "biome format .",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:migrate": "pnpm --filter services-server prisma migrate deploy"
+  },
+  "packageManager": "pnpm@9.12.2",
+  "devDependencies": {
+    "@biomejs/biome": "2.3.7",
+    "@types/node": "20.10.6",
+    "dotenv-cli": "7.4.2",
+    "turbo": "2.0.4",
+    "typescript": "5.6.3"
+  }
+}

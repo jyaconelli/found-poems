@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionStatus {
+  scheduled
+  active
+  closed
+  ready
+}
+
+model Session {
+  id          String        @id @default(uuid())
+  sourceId    String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      SessionStatus @default(scheduled)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  words       Word[]
+}
+
+model Word {
+  id        String   @id @default(uuid())
+  session   Session  @relation(fields: [sessionId], references: [id])
+  sessionId String
+  index     Int
+  text      String
+  hidden    Boolean  @default(false)
+  actorId   String?
+  hiddenAt  DateTime?
+}

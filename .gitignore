@@ -1,0 +1,11 @@
+node_modules
+.DS_Store
+.env*
+.supabase
+apps/**/dist
+apps/**/.vite
+packages/**/dist
+services/**/dist
+.idea
+.vscode
+.turbo
