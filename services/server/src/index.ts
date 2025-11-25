@@ -232,6 +232,55 @@ app.get("/api/poems", async (_req, res) => {
 	}
 });
 
+app.get("/api/public-config", (_req, res) => {
+	res.json({
+		supabaseUrl: process.env.SUPABASE_URL ?? null,
+		supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? null,
+	});
+});
+
+app.get("/api/sessions/:id/words", async (req, res) => {
+	try {
+		const words = await prisma.word.findMany({
+			where: { sessionId: req.params.id },
+			orderBy: { index: "asc" },
+			select: {
+				id: true,
+				index: true,
+				text: true,
+				hidden: true,
+				hiddenAt: true,
+				actorId: true,
+			},
+		});
+
+		return res.json({ words });
+	} catch (error) {
+		handleError(res, error);
+	}
+});
+
+app.patch("/api/words/:id/hide", async (req, res) => {
+	try {
+		const actorId = (req.header("x-actor-id") ?? "anonymous").slice(0, 64);
+		const word = await prisma.word.update({
+			where: { id: req.params.id },
+			data: { hidden: true, hiddenAt: new Date(), actorId },
+			select: {
+				id: true,
+				sessionId: true,
+				index: true,
+				hidden: true,
+				hiddenAt: true,
+			},
+		});
+
+		res.json({ word });
+	} catch (error) {
+		handleError(res, error);
+	}
+});
+
 app.use(
 	(
 		err: unknown,
