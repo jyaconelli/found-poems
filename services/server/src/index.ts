@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient, SessionStatus } from "@prisma/client";
 import cors from "cors";
 import express from "express";
+import jwt from "jsonwebtoken";
 import { Resend } from "resend";
 import { z } from "zod";
 
@@ -12,6 +13,11 @@ const resendApiKey = process.env.RESEND_API_KEY;
 const mailFrom = process.env.INVITE_EMAIL_FROM;
 const inviteBaseUrl = process.env.INVITE_BASE_URL ?? "http://localhost:5173";
 const resendClient = resendApiKey ? new Resend(resendApiKey) : null;
+const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+	.split(/[,\s]+/)
+	.map((e) => e.trim())
+	.filter(Boolean);
+const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
 const createSessionSchema = z.object({
 	title: z.string().min(3, "Title must be at least 3 characters"),
@@ -50,7 +56,7 @@ app.get("/api/health", (_req, res) => {
 	res.json({ ok: true, database: Boolean(process.env.DATABASE_URL) });
 });
 
-app.post("/api/sessions", async (req, res) => {
+app.post("/api/sessions", requireAdmin, async (req, res) => {
 	try {
 		const payload = createSessionSchema.parse(req.body);
 		const endsAt = new Date(
@@ -162,7 +168,7 @@ app.get("/api/sessions/:id", async (req, res) => {
 	}
 });
 
-app.patch("/api/sessions/:id/state", async (req, res) => {
+app.patch("/api/sessions/:id/state", requireAdmin, async (req, res) => {
 	try {
 		const { status: nextStatus } = stateSchema.parse(req.body);
 		const session = await prisma.session.findUnique({
@@ -194,7 +200,7 @@ app.patch("/api/sessions/:id/state", async (req, res) => {
 	}
 });
 
-app.post("/api/sessions/:id/publish", async (req, res) => {
+app.post("/api/sessions/:id/publish", requireAdmin, async (req, res) => {
 	try {
 		const payload = publishSchema.parse(req.body);
 
@@ -237,6 +243,24 @@ app.get("/api/public-config", (_req, res) => {
 		supabaseUrl: process.env.SUPABASE_URL ?? null,
 		supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? null,
 	});
+});
+
+app.get("/api/admin/sessions", requireAdmin, async (req, res) => {
+	try {
+		const status = req.query.status as SessionStatus | undefined;
+		const sessions = await prisma.session.findMany({
+			where: status ? { status } : undefined,
+			orderBy: { startsAt: "desc" },
+			include: {
+				invites: { select: { id: true, status: true } },
+				source: { select: { title: true } },
+			},
+		});
+
+		res.json({ sessions });
+	} catch (error) {
+		handleError(res, error);
+	}
 });
 
 app.get("/api/sessions/:id/words", async (req, res) => {
@@ -313,6 +337,36 @@ function tokenizeSource(body: string) {
 
 function createInviteToken() {
 	return randomBytes(16).toString("hex");
+}
+
+function requireAdmin(
+	req: express.Request,
+	res: express.Response,
+	next: express.NextFunction,
+) {
+	try {
+		if (!jwtSecret || adminEmails.length === 0) {
+			return res.status(500).json({ message: "Admin auth not configured" });
+		}
+
+		const auth = req.header("authorization") ?? "";
+		const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+		if (!token) return res.status(401).json({ message: "Missing token" });
+
+		const decoded = jwt.verify(token, jwtSecret) as {
+			email?: string;
+			role?: string;
+		};
+
+		if (!decoded?.email || !adminEmails.includes(decoded.email)) {
+			return res.status(403).json({ message: "Forbidden" });
+		}
+
+		next();
+	} catch (error) {
+		console.error("Admin auth failed", error);
+		return res.status(401).json({ message: "Invalid token" });
+	}
 }
 
 type InviteEmailInput = {
