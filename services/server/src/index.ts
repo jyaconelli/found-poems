@@ -3,10 +3,15 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient, SessionStatus } from "@prisma/client";
 import cors from "cors";
 import express from "express";
+import { Resend } from "resend";
 import { z } from "zod";
 
 const port = Number(process.env.PORT ?? 4000);
 const prisma = new PrismaClient();
+const resendApiKey = process.env.RESEND_API_KEY;
+const mailFrom = process.env.INVITE_EMAIL_FROM;
+const inviteBaseUrl = process.env.INVITE_BASE_URL ?? "http://localhost:5173";
+const resendClient = resendApiKey ? new Resend(resendApiKey) : null;
 
 const createSessionSchema = z.object({
 	title: z.string().min(3, "Title must be at least 3 characters"),
@@ -79,6 +84,18 @@ app.post("/api/sessions", async (req, res) => {
 				data: invites,
 				skipDuplicates: true,
 			});
+
+			if (resendClient && mailFrom) {
+				void sendInviteEmails({
+					invites,
+					session,
+					source,
+					baseUrl: inviteBaseUrl,
+					from: mailFrom,
+				}).catch((error) => {
+					console.error("Failed to send invites via Resend", error);
+				});
+			}
 		}
 
 		const tokens = tokenizeSource(payload.source.body);
@@ -247,6 +264,43 @@ function tokenizeSource(body: string) {
 
 function createInviteToken() {
 	return randomBytes(16).toString("hex");
+}
+
+type InviteEmailInput = {
+	invites: { email: string; token: string }[];
+	session: { id: string; title: string; startsAt: Date; endsAt: Date };
+	source: { title: string };
+	baseUrl: string;
+	from: string;
+};
+
+async function sendInviteEmails(input: InviteEmailInput) {
+	if (!resendClient) return;
+
+	const joinUrlFor = (token: string) =>
+		`${input.baseUrl}/join?sessionId=${encodeURIComponent(input.session.id)}&token=${encodeURIComponent(token)}`;
+
+	for (const invite of input.invites) {
+		await resendClient.emails.send({
+			from: input.from,
+			to: invite.email,
+			subject: `You're invited: ${input.session.title}`,
+			html: `
+				<p>You have been invited to a Found Poems collaboration.</p>
+				<p><strong>Session:</strong> ${input.session.title}</p>
+				<p><strong>Source:</strong> ${input.source.title}</p>
+				<p><strong>Starts:</strong> ${input.session.startsAt.toISOString()}</p>
+				<p><strong>Ends:</strong> ${input.session.endsAt.toISOString()}</p>
+				<p><a href="${joinUrlFor(invite.token)}">Join session</a></p>
+			`,
+			text: `You have been invited to a Found Poems collaboration.
+Session: ${input.session.title}
+Source: ${input.source.title}
+Starts: ${input.session.startsAt.toISOString()}
+Ends: ${input.session.endsAt.toISOString()}
+Join: ${joinUrlFor(invite.token)}`,
+		});
+	}
 }
 
 function handleError(res: express.Response, error: unknown) {
