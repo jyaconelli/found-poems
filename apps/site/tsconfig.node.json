@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "@found-poems/tsconfig/tsconfig.base.json",
+  "extends": "@found-poems/tsconfig/base",
   "compilerOptions": {
     "composite": true,
     "module": "ESNext",

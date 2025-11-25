@@ -9,7 +9,10 @@
     "lint": "turbo run lint",
     "format": "biome format .",
     "clean": "turbo run clean && rm -rf node_modules",
-    "db:migrate": "pnpm --filter services-server prisma migrate deploy"
+    "db:migrate": "dotenv -e .env -- pnpm --filter services-server exec -- prisma migrate deploy",
+    "supabase:start": "supabase start -x vector",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status"
   },
   "packageManager": "pnpm@9.12.2",
   "devDependencies": {

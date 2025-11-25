@@ -17,6 +17,7 @@ enum SessionStatus {
 
 model Session {
   id          String        @id @default(uuid())
+  title       String
   sourceId    String
   startsAt    DateTime
   endsAt      DateTime
@@ -24,6 +25,11 @@ model Session {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   words       Word[]
+  invites     SessionInvite[]
+  poem        PublishedPoem?
+  source      SourceText     @relation(fields: [sourceId], references: [id])
+
+  @@map("sessions")
 }
 
 model Word {
@@ -35,4 +41,47 @@ model Word {
   hidden    Boolean  @default(false)
   actorId   String?
   hiddenAt  DateTime?
+
+  @@map("words")
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  declined
+}
+
+model SessionInvite {
+  id        String        @id @default(uuid())
+  session   Session       @relation(fields: [sessionId], references: [id])
+  sessionId String
+  email     String
+  token     String        @unique
+  status    InviteStatus  @default(pending)
+  createdAt DateTime      @default(now())
+  respondedAt DateTime?
+
+  @@map("session_invites")
+}
+
+model SourceText {
+  id        String    @id @default(uuid())
+  title     String
+  body      String
+  createdAt DateTime  @default(now())
+  sessions  Session[]
+
+  @@map("source_texts")
+}
+
+model PublishedPoem {
+  id          String   @id @default(uuid())
+  session     Session  @relation(fields: [sessionId], references: [id])
+  sessionId   String   @unique
+  title       String
+  body        String
+  createdAt   DateTime @default(now())
+  publishedAt DateTime?
+
+  @@map("published_poems")
 }

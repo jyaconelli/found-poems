@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss';
-import sharedPreset from '@found-poems/tailwind-config/tailwind.preset.cjs';
+import sharedPreset from '@found-poems/tailwind-config/preset';
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],

@@ -43,9 +43,9 @@ Additional shared packages (e.g., `eslint-config`, `lib-poetry`) can be added un
 1. Install dependencies: `pnpm install`
 2. Start everything locally with Turborepo: `pnpm dev` (runs server, app, site in parallel)
 3. Environment:
-   - Copy `.env.example` ➜ `.env` at repo root.
-   - Required vars: `DATABASE_URL`, `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, etc.
-   - Docker compose spins up Postgres (`pnpm db:up`).
+   - Copy `.env.example` ➜ `.env` at repo root (values mirror Supabase project settings).
+   - Required vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`.
+   - Local stack comes from Supabase CLI (`pnpm supabase:start`) which boots Postgres, Realtime, and Studio using `supabase/config.toml`.
 4. Database:
    - Prisma migrations live in `services/server/prisma`.
    - Run `pnpm db:migrate` after schema changes.
@@ -53,6 +53,7 @@ Additional shared packages (e.g., `eslint-config`, `lib-poetry`) can be added un
    - Supabase GoTrue handles email-based invites + magic links.
    - Supabase Realtime channels broadcast word blackout events.
    - React apps use Supabase JS client + shared hooks in `packages/ui`.
+   - Local testing uses the Supabase CLI stack + the generated Prisma migrations (`pnpm db:migrate`).
 
 ## Supabase Architecture
 
@@ -67,6 +68,33 @@ Additional shared packages (e.g., `eslint-config`, `lib-poetry`) can be added un
 - **Auth**: Invitations issue Supabase magic links scoped to a session. Lobby pages verify session + token, then rely on Supabase session cookies for subsequent API calls.
 - **Server role**: `services/server` remains a Node/Express worker (deployable off Vercel if needed) responsible for scheduled transitions (cron hitting Supabase Edge Function), advanced admin workflows, and bridging to third-party services. It talks to Supabase via service role keys and Prisma (Data Proxy) for type-safe migrations.
 - **Local dev**: Use `supabase start` (Docker) to boot Postgres/Realtime/Auth locally. `.env` expects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+- **Migrations**: Generated through Prisma and committed under `services/server/prisma/migrations`. Apply them locally with `pnpm db:migrate` while the Supabase stack is running.
+
+## Running Supabase Locally
+
+1. Install the Supabase CLI (`brew install supabase/tap/supabase` or see docs).
+2. Start the stack: `pnpm supabase:start` (reads `supabase/config.toml`; exposes Postgres on `localhost:54322`).
+3. Copy `.env.example` ➜ `.env` and point `SUPABASE_URL`/keys to either the hosted project or the local instance (CLI prints the anon + service keys on boot).
+4. Run database migrations while the local stack is up: `pnpm db:migrate`.
+5. When finished, `pnpm supabase:stop`. Check status anytime with `pnpm supabase:status`.
+
+## Development Setup
+
+1. **Install toolchain**
+   - Node 18.20+ (or enable Corepack) and pnpm 9+ (`pnpm env use --global lts` also works).
+   - Turborepo/biome are installed as devDependencies; no global install required.
+   - Docker runtime via Colima or Docker Desktop (needed for Supabase CLI). If using Colima, run `colima start` before Supabase commands.
+2. **Install dependencies**: `pnpm install` (installs root + workspace packages).
+3. **Environment**: copy `.env.example` ➜ `.env`, fill in Supabase keys or use the local stack defaults printed by `pnpm supabase:start`.
+4. **Local services**:
+   - `pnpm supabase:start` boots Postgres, GoTrue, Realtime, storage, etc. (`-x vector` flag is baked into the script to avoid Docker socket mounting that Colima blocks).
+   - `pnpm db:migrate` applies Prisma migrations to the running Supabase Postgres instance.
+5. **Apps + server**: run `pnpm dev` to launch Express (`services/server`), the studio app (`apps/app`), and the marketing site (`apps/site`) in parallel via Turborepo.
+6. **Other scripts**:
+   - `pnpm build` – run builds for all workspaces.
+   - `pnpm lint` – Biome across packages.
+   - `pnpm format` – repository-wide formatting.
+   - `pnpm supabase:stop` / `pnpm supabase:status` – manage the local Supabase stack.
 
 ## Next Steps
 

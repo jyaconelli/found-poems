@@ -1,5 +1,5 @@
 {
-  "extends": "@found-poems/tsconfig/tsconfig.node.json",
+  "extends": "@found-poems/tsconfig/node",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src"
