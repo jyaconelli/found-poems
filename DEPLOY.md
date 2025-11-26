@@ -68,7 +68,7 @@ One-time project setup
      SUPABASE_ANON_KEY=... \
      SUPABASE_SERVICE_ROLE_KEY=... \
      SUPABASE_JWT_SECRET=... \
-     DATABASE_URL=... \
+     DATABASE_URL=postgresql://<user>:<password>@<host>:5432/postgres \
      SESSION_SECRET=... \
      ADMIN_EMAILS=comma-separated-admins \
      INVITE_BASE_URL=https://your-app-domain \
