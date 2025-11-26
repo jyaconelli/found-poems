@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Found Poems monorepo (apps, site, and Supabase orchestration)",
+  "engines": {
+    "node": "22.x",
+    "pnpm": "9.12.2"
+  },
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
+    "build": "turbo run build --concurrency=1",
     "lint": "turbo run lint",
     "format": "biome format .",
     "clean": "turbo run clean && rm -rf node_modules",
