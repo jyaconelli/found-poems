@@ -390,6 +390,7 @@ async function sendInviteEmails(input: InviteEmailInput) {
 		`${input.baseUrl}/join?sessionId=${encodeURIComponent(input.session.id)}&token=${encodeURIComponent(token)}`;
 
 	for (const invite of input.invites) {
+    console.log(`Sending invite for ${input.session.title} to ${invite.email}`)
 		await resendClient.emails.send({
 			from: input.from,
 			to: invite.email,
