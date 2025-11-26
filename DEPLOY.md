@@ -91,5 +91,3 @@ Ship new versions
 - App/Site: In browser console, `fetch('<HEROKU_URL>/api/poems')` should return an array.
 - Admin path: issue a JWT signed with `SUPABASE_JWT_SECRET` containing an email in `ADMIN_EMAILS`, then `POST /api/sessions` should succeed.
 
-
-
