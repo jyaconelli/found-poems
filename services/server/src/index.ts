@@ -417,12 +417,59 @@ Join: ${joinUrlFor(invite.token)}`,
   });
 
   try {
-    // @ts-expect-error sendBatch is available in Resend API even if types lag
-    const result = await resendClient.emails.sendBatch(messages);
-    console.log("[invites] batch result", result);
+    const response = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    console.log("[invites] batch response", {
+      status: response.status,
+      ok: response.ok,
+      ids: data?.data ?? data?.ids ?? null,
+      errors: data?.error ?? null,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Resend batch failed ${response.status} ${JSON.stringify(data)}`
+      );
+    }
   } catch (error) {
-    console.error("[invites] batch send failed", error);
-    // optional: fall back to individual sends if batch fails
+    console.error("[invites] batch send failed, falling back to single send", error);
+    for (const invite of input.invites) {
+      try {
+        console.log("[invites] fallback send", { email: invite.email });
+        await resendClient.emails.send({
+          from: input.from,
+          to: invite.email,
+          subject: `You're invited: ${input.session.title}`,
+          html: `
+				<p>You have been invited to a Found Poems collaboration.</p>
+				<p><strong>Session:</strong> ${input.session.title}</p>
+				<p><strong>Source:</strong> ${input.source.title}</p>
+				<p><strong>Starts:</strong> ${input.session.startsAt.toISOString()}</p>
+				<p><strong>Ends:</strong> ${input.session.endsAt.toISOString()}</p>
+				<p><a href="${joinUrlFor(invite.token)}">Join session</a></p>
+			`,
+          text: `You have been invited to a Found Poems collaboration.
+Session: ${input.session.title}
+Source: ${input.source.title}
+Starts: ${input.session.startsAt.toISOString()}
+Ends: ${input.session.endsAt.toISOString()}
+Join: ${joinUrlFor(invite.token)}`,
+        });
+      } catch (fallbackError) {
+        console.error("[invites] fallback send failed", {
+          email: invite.email,
+          error: fallbackError,
+        });
+      }
+    }
   }
 }
 
