@@ -75,6 +75,7 @@ One-time project setup
      RESEND_API_KEY=... \
      INVITE_EMAIL_FROM="Found Poems <team@yourdomain>"
    ```
+
 7) (Optional) Set a custom process port: Heroku injects `PORT`; no action needed unless overriding.
 
 First deploy
@@ -89,3 +90,6 @@ Ship new versions
 - API: GET `<HEROKU_URL>/api/health` returns `{ ok: true, database: true }`.
 - App/Site: In browser console, `fetch('<HEROKU_URL>/api/poems')` should return an array.
 - Admin path: issue a JWT signed with `SUPABASE_JWT_SECRET` containing an email in `ADMIN_EMAILS`, then `POST /api/sessions` should succeed.
+
+
+
