@@ -17,6 +17,27 @@ type SupabaseConfigState = {
 	error: string;
 };
 
+function pad(n: number) {
+	return n.toString().padStart(2, "0");
+}
+
+// Format a Date into the local string that <input type="datetime-local"> expects (no timezone)
+function formatLocalDateTimeInput(date: Date) {
+	const year = date.getFullYear();
+	const month = pad(date.getMonth() + 1);
+	const day = pad(date.getDate());
+	const hours = pad(date.getHours());
+	const minutes = pad(date.getMinutes());
+	return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Convert a datetime-local value (interpreted as local time) into an ISO string in UTC for the API
+function toUtcISOStringFromLocalInput(localValue: string) {
+	// localValue like "2025-11-26T18:00"
+	const date = new Date(localValue);
+	return date.toISOString();
+}
+
 export default function App() {
 	const search = new URLSearchParams(window.location.search);
 	const sessionId = search.get("sessionId");
@@ -311,8 +332,8 @@ kept striking lines, trusting that the time-box would carry us through.`;
 
 	// Create tab state
 	const [title, setTitle] = useState("Evening Lab");
-	const [startsAt, setStartsAt] = useState(() =>
-		new Date(Date.now() + 3_600_000).toISOString().slice(0, 16),
+	const [startsAtLocal, setStartsAtLocal] = useState(() =>
+		formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)),
 	);
 	const [durationMinutes, setDurationMinutes] = useState(10);
 	const [sourceTitle, setSourceTitle] = useState("Found Objects");
@@ -360,7 +381,7 @@ kept striking lines, trusting that the time-box would carry us through.`;
 				},
 				body: JSON.stringify({
 					title,
-					startsAt,
+					startsAt: toUtcISOStringFromLocalInput(startsAtLocal),
 					durationMinutes,
 					source: { title: sourceTitle, body: sourceBody },
 					inviteEmails,
@@ -453,8 +474,8 @@ kept striking lines, trusting that the time-box would carry us through.`;
 				<CreateSessionForm
 					title={title}
 					setTitle={setTitle}
-					startsAt={startsAt}
-					setStartsAt={setStartsAt}
+					startsAtLocal={startsAtLocal}
+					setStartsAtLocal={setStartsAtLocal}
 					durationMinutes={durationMinutes}
 					setDurationMinutes={setDurationMinutes}
 					inviteList={inviteList}
@@ -478,8 +499,8 @@ kept striking lines, trusting that the time-box would carry us through.`;
 function CreateSessionForm({
 	title,
 	setTitle,
-	startsAt,
-	setStartsAt,
+	startsAtLocal,
+	setStartsAtLocal,
 	durationMinutes,
 	setDurationMinutes,
 	inviteList,
@@ -495,8 +516,8 @@ function CreateSessionForm({
 }: {
 	title: string;
 	setTitle: (value: string) => void;
-	startsAt: string;
-	setStartsAt: (value: string) => void;
+	startsAtLocal: string;
+	setStartsAtLocal: (value: string) => void;
 	durationMinutes: number;
 	setDurationMinutes: (value: number) => void;
 	inviteList: string;
@@ -532,8 +553,8 @@ function CreateSessionForm({
 					<input
 						type="datetime-local"
 						className="rounded border border-ink-200 px-3 py-2"
-						value={startsAt}
-						onChange={(event) => setStartsAt(event.target.value)}
+						value={startsAtLocal}
+						onChange={(event) => setStartsAtLocal(event.target.value)}
 					/>
 				</label>
 				<label className="flex flex-col gap-2">
