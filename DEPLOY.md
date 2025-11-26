@@ -13,8 +13,9 @@ One-time project setup
 1) In Vercel, **New Project → Import** this repo.
 2) Leave **Root Directory** empty (repo root). Build settings:
    - Install: `pnpm install --frozen-lockfile`
-   - Build: `pnpm --filter apps/site build`
+   - Build: `pnpm --filter @found-poems/site build`
    - Output: `apps/site/dist`
+   - (If Vercel complains about TypeScript include paths, ensure the repo has the latest tsconfig fixes and redeploy.)
    - Framework preset: Vite.
 3) Environment Variables (Production/Preview):
    - `VITE_SUPABASE_URL`
@@ -32,7 +33,7 @@ One-time project setup
 1) Create a second Vercel project from the same repo.
 2) Same build settings as above:
    - Install: `pnpm install --frozen-lockfile`
-   - Build: `pnpm --filter apps/app build`
+   - Build: `pnpm --filter @found-poems/app build`
    - Output: `apps/app/dist`
    - Framework preset: Vite; Root Directory left empty.
 3) Environment Variables:
