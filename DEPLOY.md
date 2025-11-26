@@ -20,8 +20,8 @@ One-time project setup
 3) Environment Variables (Production/Preview):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_SERVER_URL` → your deployed API origin (Heroku URL)
-   - `INVITE_BASE_URL` → public URL of this site (used in invites)
+   - `VITE_SERVER_URL` → `https://found-poems-server-b2b4c7c986c1.herokuapp.com`
+   - `INVITE_BASE_URL` → **public URL of the app** (not the marketing site); invite links append `/join`
 4) Save & Deploy to trigger the first build.
 
 Ship new versions
@@ -39,8 +39,8 @@ One-time project setup
 3) Environment Variables:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_SERVER_URL` → Heroku API URL
-   - `INVITE_BASE_URL` → public URL of this app (used in invitation links)
+   - `VITE_SERVER_URL` → `https://found-poems-server-b2b4c7c986c1.herokuapp.com`
+   - `INVITE_BASE_URL` → public URL of this app (used in invitation links, e.g., `https://your-app.vercel.app`)
 4) Deploy once to verify.
 
 Ship new versions
@@ -90,4 +90,3 @@ Ship new versions
 - API: GET `<HEROKU_URL>/api/health` returns `{ ok: true, database: true }`.
 - App/Site: In browser console, `fetch('<HEROKU_URL>/api/poems')` should return an array.
 - Admin path: issue a JWT signed with `SUPABASE_JWT_SECRET` containing an email in `ADMIN_EMAILS`, then `POST /api/sessions` should succeed.
-
