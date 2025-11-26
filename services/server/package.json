@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "DOTENV_CONFIG_PATH=../../.env tsx watch src/index.ts",
     "build": "prisma generate --schema ./prisma/schema.prisma && tsup src/index.ts --format esm,cjs --dts --out-dir dist",
-    "start": "DOTENV_CONFIG_PATH=../../.env node dist/index.mjs",
+    "start": "DOTENV_CONFIG_PATH=../../.env node dist/index.js",
     "lint": "biome check src",
     "clean": "rimraf dist"
   },
