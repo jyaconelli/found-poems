@@ -36,6 +36,7 @@ One-time project setup
    - Build: `pnpm --filter @found-poems/app build`
    - Output: `apps/app/dist`
    - Framework preset: Vite; Root Directory left empty.
+   - SPA rewrite: `apps/app/vercel.json` (in repo) rewrites `/(.*)` → `/index.html` so `/join?...` works after deploy.
 3) Environment Variables:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
