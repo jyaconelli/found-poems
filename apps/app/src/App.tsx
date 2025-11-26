@@ -373,6 +373,7 @@ kept striking lines, trusting that the time-box would carry us through.`;
 		setErrorMessage("");
 
 		try {
+      console.log('invite emails:', inviteEmails)
 			const response = await fetch(`${API_BASE}/api/sessions`, {
 				method: "POST",
 				headers: {
