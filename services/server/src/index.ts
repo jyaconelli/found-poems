@@ -229,7 +229,13 @@ app.get("/api/poems", async (_req, res) => {
 	try {
 		const poems = await prisma.publishedPoem.findMany({
 			orderBy: { createdAt: "desc" },
-			select: { id: true, title: true, body: true, publishedAt: true },
+			select: {
+				id: true,
+				title: true,
+				body: true,
+				publishedAt: true,
+				sessionId: true,
+			},
 		});
 
 		res.json({ poems });

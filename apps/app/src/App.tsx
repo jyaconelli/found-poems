@@ -307,6 +307,9 @@ function AdminScheduler({
 half-new. Thunderheads gathered to the west, but the workshop continued and we
 kept striking lines, trusting that the time-box would carry us through.`;
 
+	const [activeTab, setActiveTab] = useState<"create" | "sessions">("create");
+
+	// Create tab state
 	const [title, setTitle] = useState("Evening Lab");
 	const [startsAt, setStartsAt] = useState(() =>
 		new Date(Date.now() + 3_600_000).toISOString().slice(0, 16),
@@ -415,15 +418,107 @@ kept striking lines, trusting that the time-box would carry us through.`;
 				<p className="text-sm uppercase tracking-wide text-ink-500">
 					Admin Console
 				</p>
-				<h1 className="text-3xl font-semibold">
-					Schedule a collaboration session
-				</h1>
+				<h1 className="text-3xl font-semibold">Dashboard</h1>
 				<p className="text-base text-ink-600">
-					This form hits the Express server (`{API_BASE}`) which orchestrates
-					Supabase (Postgres + invites + words).
+					Manage collaboration sessions and publish completed poems.
 				</p>
 			</header>
 
+			<div className="flex gap-2 rounded-full bg-ink-50 p-1 text-sm font-semibold text-ink-700">
+				<button
+					className={`rounded-full px-4 py-2 transition ${
+						activeTab === "create"
+							? "bg-ink-900 text-white shadow-sm"
+							: "hover:bg-white"
+					}`}
+					onClick={() => setActiveTab("create")}
+					type="button"
+				>
+					Create Session
+				</button>
+				<button
+					className={`rounded-full px-4 py-2 transition ${
+						activeTab === "sessions"
+							? "bg-ink-900 text-white shadow-sm"
+							: "hover:bg-white"
+					}`}
+					onClick={() => setActiveTab("sessions")}
+					type="button"
+				>
+					View Sessions
+				</button>
+			</div>
+
+			{activeTab === "create" ? (
+				<CreateSessionForm
+					title={title}
+					setTitle={setTitle}
+					startsAt={startsAt}
+					setStartsAt={setStartsAt}
+					durationMinutes={durationMinutes}
+					setDurationMinutes={setDurationMinutes}
+					inviteList={inviteList}
+					setInviteList={setInviteList}
+					sourceTitle={sourceTitle}
+					setSourceTitle={setSourceTitle}
+					sourceBody={sourceBody}
+					setSourceBody={setSourceBody}
+					inviteEmails={inviteEmails}
+					status={status}
+					errorMessage={errorMessage}
+					result={result}
+					onSubmit={handleCreate}
+				/>
+			) : (
+				<SessionsTab authToken={authToken} />
+			)}
+		</main>
+	);
+}
+
+function CreateSessionForm({
+	title,
+	setTitle,
+	startsAt,
+	setStartsAt,
+	durationMinutes,
+	setDurationMinutes,
+	inviteList,
+	setInviteList,
+	sourceTitle,
+	setSourceTitle,
+	sourceBody,
+	setSourceBody,
+	status,
+	errorMessage,
+	result,
+	onSubmit,
+}: {
+	title: string;
+	setTitle: (value: string) => void;
+	startsAt: string;
+	setStartsAt: (value: string) => void;
+	durationMinutes: number;
+	setDurationMinutes: (value: number) => void;
+	inviteList: string;
+	setInviteList: (value: string) => void;
+	sourceTitle: string;
+	setSourceTitle: (value: string) => void;
+	sourceBody: string;
+	setSourceBody: (value: string) => void;
+	status: "idle" | "pending" | "success" | "error";
+	errorMessage: string;
+	result: null | {
+		sessionId: string;
+		inviteCount: number;
+		wordCount: number;
+		startsAt: string;
+		endsAt: string;
+	};
+	onSubmit: () => void;
+}) {
+	return (
+		<>
 			<section className="grid gap-6 md:grid-cols-2">
 				<label className="flex flex-col gap-2">
 					<span className="text-sm font-medium">Title</span>
@@ -491,7 +586,7 @@ kept striking lines, trusting that the time-box would carry us through.`;
 				<Button
 					variant="primary"
 					disabled={status === "pending"}
-					onClick={handleCreate}
+					onClick={onSubmit}
 				>
 					{status === "pending" ? "Creating…" : "Create Session"}
 				</Button>
@@ -527,7 +622,343 @@ kept striking lines, trusting that the time-box would carry us through.`;
 					</dl>
 				</section>
 			)}
-		</main>
+		</>
+	);
+}
+
+type SessionStatus = "scheduled" | "active" | "closed" | "ready";
+type AdminSession = {
+	id: string;
+	title: string;
+	status: SessionStatus;
+	startsAt: string;
+	endsAt: string;
+	source: { title: string };
+	invites: { id: string; status: string }[];
+	poem?: { id: string; title: string; publishedAt: string | null } | null;
+};
+
+type SessionWord = {
+	id: string;
+	text: string;
+	hidden: boolean;
+	index: number;
+};
+
+function SessionsTab({ authToken }: { authToken: string }) {
+	const [sessions, setSessions] = useState<AdminSession[]>([]);
+	const [filter, setFilter] = useState<SessionStatus | "all">("all");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [openPublishId, setOpenPublishId] = useState<string | null>(null);
+	const [publishDraft, setPublishDraft] = useState<{
+		title: string;
+		body: string;
+	}>({
+		title: "",
+		body: "",
+	});
+	const [publishingId, setPublishingId] = useState<string | null>(null);
+	const [wordsBySession, setWordsBySession] = useState<
+		Record<string, SessionWord[]>
+	>({});
+	const [loadingWordsFor, setLoadingWordsFor] = useState<string | null>(null);
+
+	const loadSessions = useCallback(async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			const url =
+				filter === "all"
+					? `${API_BASE}/api/admin/sessions`
+					: `${API_BASE}/api/admin/sessions?status=${filter}`;
+			const response = await fetch(url, {
+				headers: { authorization: `Bearer ${authToken}` },
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				setError(
+					typeof data.message === "string"
+						? data.message
+						: "Failed to load sessions",
+				);
+				setSessions([]);
+				return;
+			}
+			setSessions(data.sessions ?? []);
+		} catch (_err) {
+			setError("Unable to load sessions.");
+		} finally {
+			setLoading(false);
+		}
+	}, [authToken, filter]);
+
+	useEffect(() => {
+		void loadSessions();
+	}, [loadSessions]);
+
+	const startPublish = (session: AdminSession) => {
+		setOpenPublishId(session.id);
+		void loadWordsForSession(session);
+	};
+
+	const toggleDetails = (session: AdminSession) => {
+		setOpenPublishId((prev) => {
+			const next = prev === session.id ? null : session.id;
+			if (next) {
+				void loadWordsForSession(session);
+			}
+			return next;
+		});
+	};
+
+	const submitPublish = async (sessionId: string) => {
+		if (!publishDraft.body.trim()) {
+			setError("Body is required to publish.");
+			return;
+		}
+		setPublishingId(sessionId);
+		setError(null);
+		try {
+			const response = await fetch(
+				`${API_BASE}/api/sessions/${sessionId}/publish`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						authorization: `Bearer ${authToken}`,
+					},
+					body: JSON.stringify({
+						title: publishDraft.title,
+						body: publishDraft.body,
+					}),
+				},
+			);
+			if (!response.ok) {
+				const data = await response.json().catch(() => ({}));
+				setError(
+					typeof data.message === "string"
+						? data.message
+						: "Failed to publish session",
+				);
+				return;
+			}
+			setOpenPublishId(null);
+			setPublishDraft({ title: "", body: "" });
+			await loadSessions();
+		} finally {
+			setPublishingId(null);
+		}
+	};
+
+	const setPublishDraftFromWords = (
+		sessionId: string,
+		title: string,
+		words?: SessionWord[],
+	) => {
+		const list = words ?? wordsBySession[sessionId] ?? [];
+		const visibleText = list
+			.filter((w) => !w.hidden)
+			.map((w) => w.text)
+			.join(" ");
+		setPublishDraft({
+			title,
+			body: visibleText,
+		});
+	};
+
+	const loadWordsForSession = async (session: AdminSession) => {
+		if (wordsBySession[session.id]) {
+			setPublishDraftFromWords(session.id, session.title);
+			return;
+		}
+		setLoadingWordsFor(session.id);
+		try {
+			const response = await fetch(
+				`${API_BASE}/api/sessions/${session.id}/words`,
+				{
+					headers: { authorization: `Bearer ${authToken}` },
+				},
+			);
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				setError(
+					typeof data.message === "string"
+						? data.message
+						: "Unable to load session details",
+				);
+				return;
+			}
+			const words: SessionWord[] = (data.words ?? []).sort(
+				(a: SessionWord, b: SessionWord) => a.index - b.index,
+			);
+			setWordsBySession((prev) => ({ ...prev, [session.id]: words }));
+			setPublishDraftFromWords(session.id, session.title, words);
+		} catch (_err) {
+			setError("Unable to load session details.");
+		} finally {
+			setLoadingWordsFor(null);
+		}
+	};
+
+	return (
+		<section className="space-y-4">
+			<div className="flex flex-wrap items-center gap-3">
+				<p className="text-sm font-semibold text-ink-700">Status</p>
+				<div className="flex flex-wrap gap-2">
+					{["all", "scheduled", "active", "closed", "ready"].map((s) => (
+						<button
+							key={s}
+							type="button"
+							onClick={() => setFilter(s as SessionStatus | "all")}
+							className={`rounded-full border px-3 py-1 text-sm transition ${
+								filter === s
+									? "border-ink-900 bg-ink-900 text-white"
+									: "border-ink-200 bg-white text-ink-700 hover:border-ink-300"
+							}`}
+						>
+							{s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+						</button>
+					))}
+				</div>
+			</div>
+
+			<div className="rounded-2xl border border-ink-200 bg-white shadow-sm">
+				{loading && (
+					<p className="px-4 py-3 text-sm text-ink-600">Loading sessions…</p>
+				)}
+				{error && (
+					<p className="px-4 py-3 text-sm text-red-600">
+						{error} — try refreshing.
+					</p>
+				)}
+				{!loading && !sessions.length && !error && (
+					<p className="px-4 py-3 text-sm text-ink-600">No sessions found.</p>
+				)}
+				<ul className="divide-y divide-ink-100">
+					{sessions.map((session) => {
+						const invited = session.invites.length;
+						const accepted = session.invites.filter(
+							(invite) => invite.status === "accepted",
+						).length;
+						const publishOpen = openPublishId === session.id;
+						const words = wordsBySession[session.id];
+						return (
+							<li key={session.id} className="p-4">
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div>
+										<p className="text-sm uppercase tracking-wide text-ink-500">
+											{session.status}
+										</p>
+										<h3 className="text-lg font-semibold">{session.title}</h3>
+										<p className="text-xs text-ink-500">
+											Starts: {formatPst(session.startsAt)} · Ends:{" "}
+											{formatPst(session.endsAt)}
+										</p>
+										<p className="text-xs text-ink-500">
+											Invites accepted {accepted}/{invited}
+										</p>
+									</div>
+									<div className="flex flex-wrap items-center gap-2">
+										<Button
+											variant="ghost"
+											onClick={() => startPublish(session)}
+										>
+											{session.poem?.publishedAt ? "Republish" : "Publish"}
+										</Button>
+										<Button
+											variant="ghost"
+											disabled={publishingId === session.id}
+											onClick={() => toggleDetails(session)}
+										>
+											{publishOpen ? "Close" : "Details"}
+										</Button>
+									</div>
+								</div>
+								{publishOpen && (
+									<div className="mt-4 space-y-3 rounded-lg border border-ink-200 bg-ink-50 p-4">
+										{loadingWordsFor === session.id && (
+											<p className="text-sm text-ink-600">Loading words…</p>
+										)}
+										{!loadingWordsFor && !words && (
+											<p className="text-sm text-ink-600">
+												Fetching final poem state…
+											</p>
+										)}
+										{words && (
+											<div className="rounded-xl border border-ink-200 bg-white p-3 shadow-inner">
+												<p className="text-xs uppercase tracking-wide text-ink-500">
+													Final poem (non-editable)
+												</p>
+												<div className="mt-2 flex flex-wrap gap-2 text-lg leading-relaxed">
+													{words.map((word) => (
+														<span
+															key={word.id}
+															className={`rounded px-1 py-0.5 ${
+																word.hidden
+																	? "bg-ink-900 text-ink-900"
+																	: "bg-ink-100 text-ink-900"
+															}`}
+														>
+															<span className={word.hidden ? "opacity-0" : ""}>
+																{word.text}
+															</span>
+														</span>
+													))}
+												</div>
+											</div>
+										)}
+										<label className="flex flex-col gap-2">
+											<span className="text-xs font-semibold text-ink-600">
+												Publish title
+											</span>
+											<input
+												className="rounded border border-ink-200 px-3 py-2"
+												value={publishDraft.title}
+												onChange={(e) =>
+													setPublishDraft((prev) => ({
+														...prev,
+														title: e.target.value,
+													}))
+												}
+											/>
+										</label>
+										<label className="flex flex-col gap-2">
+											<span className="text-xs font-semibold text-ink-600">
+												Publish body (auto-generated)
+											</span>
+											<textarea
+												className="rounded border border-ink-200 px-3 py-2"
+												rows={4}
+												value={publishDraft.body}
+												readOnly
+											/>
+										</label>
+										<div className="flex items-center gap-3">
+											<Button
+												variant="primary"
+												disabled={publishingId === session.id}
+												onClick={() => void submitPublish(session.id)}
+											>
+												{publishingId === session.id
+													? "Publishing…"
+													: "Publish poem"}
+											</Button>
+											{session.poem?.publishedAt && (
+												<span className="text-xs text-ink-600">
+													Last published:{" "}
+													{new Date(session.poem.publishedAt).toLocaleString()}
+												</span>
+											)}
+										</div>
+									</div>
+								)}
+							</li>
+						);
+					})}
+				</ul>
+			</div>
+		</section>
 	);
 }
 
