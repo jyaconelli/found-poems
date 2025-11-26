@@ -463,7 +463,6 @@ kept striking lines, trusting that the time-box would carry us through.`;
 					setSourceTitle={setSourceTitle}
 					sourceBody={sourceBody}
 					setSourceBody={setSourceBody}
-					inviteEmails={inviteEmails}
 					status={status}
 					errorMessage={errorMessage}
 					result={result}
@@ -515,7 +514,7 @@ function CreateSessionForm({
 		startsAt: string;
 		endsAt: string;
 	};
-	onSubmit: () => void;
+	onSubmit: () => Promise<void>;
 }) {
 	return (
 		<>
@@ -1046,7 +1045,11 @@ function ParticipantView({
 		}
 		loadSession();
 		interval = window.setInterval(loadSession, 5000);
-		return () => interval && window.clearInterval(interval);
+		return () => {
+			if (interval !== undefined) {
+				window.clearInterval(interval);
+			}
+		};
 	}, [sessionId, updatePhase]);
 
 	// Load words
