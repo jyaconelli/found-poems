@@ -705,7 +705,12 @@ function SessionsTab({ authToken }: { authToken: string }) {
 				setSessions([]);
 				return;
 			}
-			setSessions(data.sessions ?? []);
+			const sorted = (data.sessions ?? []).slice().sort((a: AdminSession, b: AdminSession) => {
+				const aTime = new Date(a.startsAt).getTime();
+				const bTime = new Date(b.startsAt).getTime();
+				return bTime - aTime; // newest first
+			});
+			setSessions(sorted);
 		} catch (_err) {
 			setError("Unable to load sessions.");
 		} finally {
@@ -733,10 +738,19 @@ function SessionsTab({ authToken }: { authToken: string }) {
 	};
 
 	const submitPublish = async (sessionId: string) => {
+		if (!publishDraft.title.trim()) {
+			setError("Title is required to publish.");
+			return;
+		}
 		if (!publishDraft.body.trim()) {
 			setError("Body is required to publish.");
 			return;
 		}
+		console.log("[publish] submitting", {
+			sessionId,
+			title: publishDraft.title,
+			bodyLength: publishDraft.body.length,
+		});
 		setPublishingId(sessionId);
 		setError(null);
 		try {
@@ -754,8 +768,14 @@ function SessionsTab({ authToken }: { authToken: string }) {
 					}),
 				},
 			);
+			const data = await response.json().catch(() => ({}));
+			console.log("[publish] response", {
+				status: response.status,
+				ok: response.ok,
+				bodyKeys: Object.keys(data ?? {}),
+				data,
+			});
 			if (!response.ok) {
-				const data = await response.json().catch(() => ({}));
 				setError(
 					typeof data.message === "string"
 						? data.message
@@ -789,6 +809,9 @@ function SessionsTab({ authToken }: { authToken: string }) {
 
 	const loadWordsForSession = async (session: AdminSession) => {
 		if (wordsBySession[session.id]) {
+			console.log("[publish] words cached, using existing", {
+				sessionId: session.id,
+			});
 			setPublishDraftFromWords(session.id, session.title);
 			return;
 		}
@@ -801,6 +824,12 @@ function SessionsTab({ authToken }: { authToken: string }) {
 				},
 			);
 			const data = await response.json().catch(() => ({}));
+			console.log("[publish] load words", {
+				sessionId: session.id,
+				status: response.status,
+				ok: response.ok,
+				wordCount: (data.words ?? []).length,
+			});
 			if (!response.ok) {
 				setError(
 					typeof data.message === "string"
@@ -815,6 +844,7 @@ function SessionsTab({ authToken }: { authToken: string }) {
 			setWordsBySession((prev) => ({ ...prev, [session.id]: words }));
 			setPublishDraftFromWords(session.id, session.title, words);
 		} catch (_err) {
+			console.error("[publish] load words failed", _err);
 			setError("Unable to load session details.");
 		} finally {
 			setLoadingWordsFor(null);
@@ -866,10 +896,17 @@ function SessionsTab({ authToken }: { authToken: string }) {
 						return (
 							<li key={session.id} className="p-4">
 								<div className="flex flex-wrap items-start justify-between gap-3">
-									<div>
-										<p className="text-sm uppercase tracking-wide text-ink-500">
-											{session.status}
-										</p>
+									<div className="space-y-1">
+										<div className="flex items-center gap-2">
+											<p className="text-xs uppercase tracking-wide text-ink-500">
+												{session.status}
+											</p>
+											{session.poem?.publishedAt && (
+												<span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+													Published
+												</span>
+											)}
+										</div>
 										<h3 className="text-lg font-semibold">{session.title}</h3>
 										<p className="text-xs text-ink-500">
 											Starts: {formatPst(session.startsAt)} · Ends:{" "}
