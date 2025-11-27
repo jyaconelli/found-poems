@@ -396,14 +396,14 @@ async function sendInviteEmails(input: InviteEmailInput) {
     to: invite.email,
     subject: `You're invited: ${input.session.title}`,
     html: `
-\t\t\t\t<p>You have been invited to a Found Poems collaboration.</p>
+\t\t\t\t<p>You have been invited to participate in a collaborative poem.</p>
 \t\t\t\t<p><strong>Session:</strong> ${input.session.title}</p>
 \t\t\t\t<p><strong>Source:</strong> ${input.source.title}</p>
 \t\t\t\t<p><strong>Starts:</strong> ${input.session.startsAt.toISOString()}</p>
 \t\t\t\t<p><strong>Ends:</strong> ${input.session.endsAt.toISOString()}</p>
 \t\t\t\t<p><a href="${joinUrlFor(invite.token)}">Join session</a></p>
 \t\t\t`,
-    text: `You have been invited to a Found Poems collaboration.
+    text: `You have been invited! Collaborative poem session @ ${input.session.startsAt.toISOString()}.
 Session: ${input.session.title}
 Source: ${input.source.title}
 Starts: ${input.session.startsAt.toISOString()}
