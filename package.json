@@ -15,7 +15,10 @@
     "db:migrate": "dotenv -e .env -- pnpm --filter services-server exec -- prisma migrate deploy",
     "supabase:start": "supabase start -x vector",
     "supabase:stop": "supabase stop",
-    "supabase:status": "supabase status"
+    "supabase:status": "supabase status",
+    "server:deploy": "git push heroku main",
+    "server:logs": "heroku logs --tail",
+    "server:retry": "heroku releases:retry && heroku releases:output --app found-poems-server"
   },
   "packageManager": "pnpm@9.12.2",
   "devDependencies": {
