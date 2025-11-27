@@ -26,7 +26,6 @@ export default function App() {
   );
   const [loadingWords, setLoadingWords] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [consolidated, setConsolidated] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let mounted = true;
@@ -79,13 +78,6 @@ export default function App() {
     };
   }, []);
 
-  const toggleConsolidate = (sessionId: string) => {
-    setConsolidated((prev) => ({
-      ...prev,
-      [sessionId]: !prev[sessionId],
-    }));
-  };
-
   return (
     <main className="flex min-h-screen flex-col items-center gap-6 bg-black px-6 py-16 text-center">
       <p className="text-sm invert hue-rotate-180 uppercase tracking-wide text-neutral-300">
@@ -122,11 +114,7 @@ export default function App() {
                   <p className="text-sm text-ink-500">Loading blackout view…</p>
                 )}
                 {!loadingWords && (
-                  <BlackoutPoem
-                    words={wordsBySession[poem.sessionId]}
-                    consolidated={Boolean(consolidated[poem.sessionId])}
-                    onToggle={() => toggleConsolidate(poem.sessionId)}
-                  />
+                  <BlackoutPoem words={wordsBySession[poem.sessionId]} />
                 )}
               </div>
             </article>
@@ -137,15 +125,7 @@ export default function App() {
   );
 }
 
-function BlackoutPoem({
-  words,
-  consolidated,
-  onToggle,
-}: {
-  words?: Word[];
-  consolidated: boolean;
-  onToggle: () => void;
-}) {
+function BlackoutPoem({ words }: { words?: Word[] }) {
   if (!words || words.length === 0) {
     return (
       <p className="text-sm text-ink-600">
@@ -159,28 +139,16 @@ function BlackoutPoem({
     <>
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs uppercase tracking-wide text-ink-500"></p>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="text-xs font-semibold text-black/70 underline-offset-2 hover:underline"
-        >
-          {consolidated ? "Show" : "Hide"}
-        </button>
+        <button type="button"></button>
       </div>
       <div className="bg-black p-3">
-        <div
-          className={`flex flex-wrap ${
-            consolidated ? "gap-0" : "gap-0"
-          } text-lg leading-relaxed`}
-        >
+        <div className={`flex flex-wrap text-lg leading-relaxed`}>
           {words.map((word) => (
             <span
               key={word.id}
               className={`px-1 py-0.5 transition-all duration-300 ${
                 word.hidden
-                  ? consolidated
-                    ? "bg-black text-black opacity-0"
-                    : "bg-white text-white"
+                  ? "bg-black text-black opacity-0"
                   : "bg-transparent text-white"
               }`}
             >
