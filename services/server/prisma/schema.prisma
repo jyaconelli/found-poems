@@ -12,7 +12,7 @@ enum SessionStatus {
   scheduled
   active
   closed
-  ready
+  published
 }
 
 model Session {

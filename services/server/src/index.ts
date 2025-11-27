@@ -18,6 +18,7 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .map((e) => e.trim())
   .filter(Boolean);
 const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+const STATUS_REFRESH_INTERVAL_MS = 60_000;
 
 const createSessionSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -44,13 +45,19 @@ const publishSchema = z.object({
 const allowedTransitions: Record<SessionStatus, SessionStatus[]> = {
   scheduled: ["active", "closed"],
   active: ["closed"],
-  closed: ["ready"],
-  ready: [],
+  closed: ["published"],
+  published: [],
 };
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Background task to keep session statuses in sync with time
+void refreshSessionStatuses();
+const statusInterval = setInterval(() => {
+  void refreshSessionStatuses();
+}, STATUS_REFRESH_INTERVAL_MS);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, database: Boolean(process.env.DATABASE_URL) });
@@ -219,6 +226,12 @@ app.post("/api/sessions/:id/publish", requireAdmin, async (req, res) => {
       },
     });
 
+    // Publishing marks the session as published
+    await prisma.session.update({
+      where: { id: req.params.id },
+      data: { status: SessionStatus.published },
+    });
+
     res.status(201).json({ poem });
   } catch (error) {
     handleError(res, error);
@@ -327,6 +340,7 @@ app.listen(port, () => {
 });
 
 const shutdown = async () => {
+  clearInterval(statusInterval);
   await prisma.$disconnect();
   process.exit(0);
 };
@@ -339,6 +353,36 @@ function tokenizeSource(body: string) {
     .split(/\s+/)
     .map((token) => token.trim())
     .filter(Boolean);
+}
+
+async function refreshSessionStatuses() {
+  const now = new Date();
+
+  const [activated, closed] = await Promise.all([
+    prisma.session.updateMany({
+      where: {
+        status: SessionStatus.scheduled,
+        startsAt: { lte: now },
+        endsAt: { gt: now },
+      },
+      data: { status: SessionStatus.active },
+    }),
+    prisma.session.updateMany({
+      where: {
+        status: { in: [SessionStatus.scheduled, SessionStatus.active] },
+        endsAt: { lte: now },
+      },
+      data: { status: SessionStatus.closed },
+    }),
+  ]);
+
+  if (activated.count || closed.count) {
+    console.log("[sessions] status refresh", {
+      now: now.toISOString(),
+      activated: activated.count,
+      closed: closed.count,
+    });
+  }
 }
 
 function createInviteToken() {
