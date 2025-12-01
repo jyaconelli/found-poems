@@ -1,5 +1,6 @@
 import { Button } from "@found-poems/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { API_BASE } from "../../constants";
 import type {
   AdminSession,
@@ -10,9 +11,16 @@ import { formatPst } from "../../utils/datetime";
 
 type Props = { authToken: string };
 
+const STATUS_FILTERS: Array<SessionStatus | "all"> = [
+  "all",
+  "scheduled",
+  "active",
+  "closed",
+  "published",
+];
+
 function SessionsTab({ authToken }: Props) {
   const [sessions, setSessions] = useState<AdminSession[]>([]);
-  const [filter, setFilter] = useState<SessionStatus | "all">("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openPublishId, setOpenPublishId] = useState<string | null>(null);
@@ -28,6 +36,28 @@ function SessionsTab({ authToken }: Props) {
     Record<string, SessionWord[]>
   >({});
   const [loadingWordsFor, setLoadingWordsFor] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const filter = useMemo<SessionStatus | "all">(() => {
+    const statusParam = searchParams.get("status");
+    if (
+      statusParam &&
+      STATUS_FILTERS.includes(statusParam as SessionStatus | "all")
+    ) {
+      return statusParam as SessionStatus | "all";
+    }
+    return "all";
+  }, [searchParams]);
+
+  const updateFilter = (next: SessionStatus | "all") => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === "all") {
+      nextParams.delete("status");
+    } else {
+      nextParams.set("status", next);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -205,11 +235,11 @@ function SessionsTab({ authToken }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm font-semibold text-ink-700">Status</p>
         <div className="flex flex-wrap gap-2">
-          {["all", "scheduled", "active", "closed", "published"].map((s) => (
+          {STATUS_FILTERS.map((s) => (
             <button
               key={s}
               type="button"
-              onClick={() => setFilter(s as SessionStatus | "all")}
+              onClick={() => updateFilter(s as SessionStatus | "all")}
               className={`rounded-full border px-3 py-1 text-sm transition ${
                 filter === s
                   ? "border-ink-900 bg-ink-900 text-white"

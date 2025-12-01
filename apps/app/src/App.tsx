@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import AdminGate from "./components/AdminGate";
 import ConfigState from "./components/ConfigState";
 import ParticipantView from "./components/participant/ParticipantView";
@@ -11,10 +12,14 @@ import type { SupabaseConfigState } from "./types/config";
 import { randomHex } from "./utils/random";
 
 export default function App() {
-  const search = new URLSearchParams(window.location.search);
+  const location = useLocation();
+  const search = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
   const sessionId = search.get("sessionId");
   const inviteToken = search.get("token");
-  const token = inviteToken ?? randomHex();
+  const token = useMemo(() => inviteToken ?? randomHex(), [inviteToken]);
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfigState>(
     () => ({
       url: INITIAL_SUPABASE_URL,

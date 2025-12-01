@@ -1,7 +1,10 @@
 import { createClient, type Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 import AdminScheduler from "./AdminScheduler";
+import CreateSessionPage from "./CreateSessionPage";
 import LoginPage from "./LoginPage";
+import SessionsPage from "./SessionsPage";
 
 type Props = {
   supabaseUrl: string;
@@ -66,23 +69,46 @@ function AdminAuth({ supabaseUrl, supabaseKey }: Props) {
     );
   }
 
-  if (!session) {
-    return (
-      <LoginPage
-        onSubmit={handleLogin}
-        loading={isSigningIn}
-        error={authError}
-      />
-    );
-  }
-
   return (
-    <AdminScheduler
-      configStatus="ready"
-      authToken={session.access_token}
-      userEmail={session.user.email ?? "Admin"}
-      onSignOut={handleLogout}
-    />
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          session ? (
+            <Navigate to="/admin/create" replace />
+          ) : (
+            <LoginPage
+              onSubmit={handleLogin}
+              loading={isSigningIn}
+              error={authError}
+            />
+          )
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          session ? (
+            <AdminScheduler
+              configStatus="ready"
+              authToken={session.access_token}
+              userEmail={session.user.email ?? "Admin"}
+              onSignOut={handleLogout}
+            />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      >
+        <Route index element={<Navigate to="create" replace />} />
+        <Route path="create" element={<CreateSessionPage />} />
+        <Route path="sessions" element={<SessionsPage />} />
+      </Route>
+      <Route
+        path="*"
+        element={<Navigate to={session ? "/admin/create" : "/login"} replace />}
+      />
+    </Routes>
   );
 }
 
