@@ -647,7 +647,7 @@ function CreateSessionForm({
 	);
 }
 
-type SessionStatus = "scheduled" | "active" | "closed" | "ready";
+type SessionStatus = "scheduled" | "active" | "closed" | "published";
 type AdminSession = {
 	id: string;
 	title: string;
@@ -857,7 +857,7 @@ function SessionsTab({ authToken }: { authToken: string }) {
 			<div className="flex flex-wrap items-center gap-3">
 				<p className="text-sm font-semibold text-ink-700">Status</p>
 				<div className="flex flex-wrap gap-2">
-					{["all", "scheduled", "active", "closed", "ready"].map((s) => (
+					{["all", "scheduled", "active", "closed", "published"].map((s) => (
 						<button
 							key={s}
 							type="button"
