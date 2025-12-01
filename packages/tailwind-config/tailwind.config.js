@@ -1,5 +1,5 @@
-const preset = require('./tailwind.preset.cjs');
+const preset = require("./tailwind.preset.cjs");
 
 module.exports = {
-  presets: [preset]
+  presets: [preset],
 };

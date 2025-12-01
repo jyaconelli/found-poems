@@ -11,7 +11,7 @@
     "build": "turbo run build --concurrency=1",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint -- --write",
-    "format": "biome format . -- --write",
+    "format": "biome format . --write",
     "clean": "turbo run clean && rm -rf node_modules",
     "dev:db:migrate": "dotenv -e .env -- pnpm --filter services-server exec -- prisma migrate deploy",
     "prod:db:migrate": "heroku run -a found-poems-server \"cd services/server && pnpm exec prisma migrate deploy\"",
