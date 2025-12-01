@@ -1,13 +1,13 @@
-import express from "express";
+import { Router } from "express";
 import { config } from "../config";
 
-const router = express.Router();
+const router: Router = Router();
 
 router.get("/api/public-config", (_req, res) => {
-	res.json({
-		supabaseUrl: config.supabaseUrl,
-		supabaseAnonKey: config.supabaseAnonKey,
-	});
+  res.json({
+    supabaseUrl: config.supabaseUrl,
+    supabaseAnonKey: config.supabaseAnonKey,
+  });
 });
 
 export { router as publicConfigRouter };

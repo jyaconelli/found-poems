@@ -22,7 +22,7 @@ type Word = {
 export default function App() {
   const [poems, setPoems] = useState<Poem[]>([]);
   const [wordsBySession, setWordsBySession] = useState<Record<string, Word[]>>(
-    {}
+    {},
   );
   const [loadingWords, setLoadingWords] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,23 +44,23 @@ export default function App() {
           const wordResults = await Promise.all(
             data.poems.map(async (poem: Poem) => {
               const resp = await fetch(
-                `${API_BASE}/api/sessions/${poem.sessionId}/words`
+                `${API_BASE}/api/sessions/${poem.sessionId}/words`,
               );
               const json = await resp.json().catch(() => ({}));
               if (!resp.ok) return { sessionId: poem.sessionId, words: [] };
               const sorted =
                 (json.words ?? []).sort(
-                  (a: Word, b: Word) => a.index - b.index
+                  (a: Word, b: Word) => a.index - b.index,
                 ) ?? [];
               return { sessionId: poem.sessionId, words: sorted };
-            })
+            }),
           );
           if (mounted) {
             setWordsBySession(
               wordResults.reduce<Record<string, Word[]>>((acc, item) => {
                 acc[item.sessionId] = item.words;
                 return acc;
-              }, {})
+              }, {}),
             );
             setLoadingWords(false);
           }

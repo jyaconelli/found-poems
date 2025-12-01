@@ -20,28 +20,28 @@ app.use(poemsRouter);
 app.use(publicConfigRouter);
 
 app.use(
-	(
-		err: unknown,
-		_req: express.Request,
-		res: express.Response,
-		_next: express.NextFunction,
-	) => {
-		handleError(res, err);
-	},
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    handleError(res, err);
+  },
 );
 
 const statusInterval = startStatusRefresh();
 
 const server = app.listen(config.port, () => {
-	console.log(
-		`[server] VERSION: ${config.herokuReleaseVersion}. listening on http://localhost:${config.port}`,
-	);
+  console.log(
+    `[server] VERSION: ${config.herokuReleaseVersion}. listening on http://localhost:${config.port}`,
+  );
 });
 
 const shutdown = async () => {
-	clearInterval(statusInterval);
-	await prisma.$disconnect();
-	server.close(() => process.exit(0));
+  clearInterval(statusInterval);
+  await prisma.$disconnect();
+  server.close(() => process.exit(0));
 };
 
 process.on("SIGINT", shutdown);

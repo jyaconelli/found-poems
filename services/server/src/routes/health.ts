@@ -1,9 +1,9 @@
-import express from "express";
+import { Router } from "express";
 
-const router = express.Router();
+const router: Router = Router();
 
 router.get("/api/health", (_req, res) => {
-	res.json({ ok: true, database: Boolean(process.env.DATABASE_URL) });
+  res.json({ ok: true, database: Boolean(process.env.DATABASE_URL) });
 });
 
 export { router as healthRouter };
