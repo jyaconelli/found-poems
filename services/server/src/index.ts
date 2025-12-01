@@ -336,7 +336,9 @@ app.use(
 );
 
 app.listen(port, () => {
-  console.log(`[server] listening on http://localhost:${port}`);
+  console.log(
+    `[server] VERSION: ${process.env.HEROKU_RELEASE_VERSION ?? '<UNKNOWN>'}. listening on http://localhost:${port}`
+  );
 });
 
 const shutdown = async () => {
@@ -484,7 +486,10 @@ Join: ${joinUrlFor(invite.token)}`,
       );
     }
   } catch (error) {
-    console.error("[invites] batch send failed, falling back to single send", error);
+    console.error(
+      "[invites] batch send failed, falling back to single send",
+      error
+    );
     for (const invite of input.invites) {
       try {
         console.log("[invites] fallback send", { email: invite.email });
