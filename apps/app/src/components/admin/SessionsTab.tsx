@@ -242,6 +242,8 @@ function SessionsTab({ authToken }: Props) {
             ).length;
             const publishOpen = openPublishId === session.id;
             const words = wordsBySession[session.id];
+            const canPublish =
+              session.status === "closed" || session.status === "published";
             return (
               <li key={session.id} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -266,23 +268,25 @@ function SessionsTab({ authToken }: Props) {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="primary"
-                      disabled={publishingId === session.id}
-                      onClick={() =>
-                        void (session.poem?.publishedAt
-                          ? unpublish(session.id)
-                          : submitPublish(session.id))
-                      }
-                    >
-                      {publishingId === session.id
-                        ? session.poem?.publishedAt
-                          ? "Unpublishing…"
-                          : "Publishing…"
-                        : session.poem?.publishedAt
-                          ? "Unpublish"
-                          : "Publish"}
-                    </Button>
+                    {canPublish && (
+                      <Button
+                        variant="primary"
+                        disabled={publishingId === session.id}
+                        onClick={() =>
+                          void (session.poem?.publishedAt
+                            ? unpublish(session.id)
+                            : submitPublish(session.id))
+                        }
+                      >
+                        {publishingId === session.id
+                          ? session.poem?.publishedAt
+                            ? "Unpublishing…"
+                            : "Publishing…"
+                          : session.poem?.publishedAt
+                            ? "Unpublish"
+                            : "Publish"}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       disabled={publishingId === session.id}
@@ -352,23 +356,25 @@ function SessionsTab({ authToken }: Props) {
                       />
                     </label>
                     <div className="flex items-center gap-3">
-                      <Button
-                        variant="primary"
-                        disabled={publishingId === session.id}
-                        onClick={() =>
-                          void (session.poem?.publishedAt
-                            ? unpublish(session.id)
-                            : submitPublish(session.id))
-                        }
-                      >
-                        {publishingId === session.id
-                          ? session.poem?.publishedAt
-                            ? "Unpublishing…"
-                            : "Publishing…"
-                          : session.poem?.publishedAt
-                            ? "Unpublish poem"
-                            : "Publish poem"}
-                      </Button>
+                      {canPublish && (
+                        <Button
+                          variant="primary"
+                          disabled={publishingId === session.id}
+                          onClick={() =>
+                            void (session.poem?.publishedAt
+                              ? unpublish(session.id)
+                              : submitPublish(session.id))
+                          }
+                        >
+                          {publishingId === session.id
+                            ? session.poem?.publishedAt
+                              ? "Unpublishing…"
+                              : "Publishing…"
+                            : session.poem?.publishedAt
+                              ? "Unpublish poem"
+                              : "Publish poem"}
+                        </Button>
+                      )}
                       {session.poem?.publishedAt && (
                         <span className="text-xs text-ink-600">
                           Last published:{" "}
