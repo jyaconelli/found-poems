@@ -1,4 +1,4 @@
-import { SessionStatus } from "@prisma/client";
+import { InviteStatus, SessionStatus } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../clients/prisma";
@@ -32,6 +32,11 @@ const stateSchema = z.object({
 const publishSchema = z.object({
   title: z.string().min(3),
   body: z.string().min(3),
+});
+
+const acceptInviteSchema = z.object({
+  sessionId: z.string().uuid(),
+  token: z.string().min(1),
 });
 
 const allowedTransitions: Record<SessionStatus, SessionStatus[]> = {
@@ -153,6 +158,52 @@ router.get("/api/sessions/:id", async (req, res) => {
   }
 });
 
+router.post("/api/invites/accept", async (req, res) => {
+  try {
+    const payload = acceptInviteSchema.parse(req.body);
+
+    const invite = await prisma.sessionInvite.findUnique({
+      where: { token: payload.token },
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        respondedAt: true,
+      },
+    });
+
+    if (!invite) {
+      return res.status(404).json({ message: "Invite not found" });
+    }
+
+    if (invite.sessionId !== payload.sessionId) {
+      return res.status(400).json({ message: "Invite does not match session" });
+    }
+
+    if (invite.status === InviteStatus.accepted) {
+      return res.json({ invite });
+    }
+
+    const updated = await prisma.sessionInvite.update({
+      where: { id: invite.id },
+      data: {
+        status: InviteStatus.accepted,
+        respondedAt: invite.respondedAt ?? new Date(),
+      },
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        respondedAt: true,
+      },
+    });
+
+    return res.json({ invite: updated });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 router.patch("/api/sessions/:id/state", requireAdmin, async (req, res) => {
   try {
     const { status: nextStatus } = stateSchema.parse(req.body);
@@ -215,6 +266,30 @@ router.post("/api/sessions/:id/publish", requireAdmin, async (req, res) => {
   }
 });
 
+router.delete("/api/sessions/:id/publish", requireAdmin, async (req, res) => {
+  try {
+    const poem = await prisma.publishedPoem.findUnique({
+      where: { sessionId: req.params.id },
+    });
+
+    if (!poem) {
+      return res.status(404).json({ message: "Published poem not found" });
+    }
+
+    await prisma.$transaction([
+      prisma.publishedPoem.delete({ where: { sessionId: req.params.id } }),
+      prisma.session.update({
+        where: { id: req.params.id },
+        data: { status: SessionStatus.closed },
+      }),
+    ]);
+
+    res.json({ message: "Poem unpublished" });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
   try {
     const status = req.query.status as SessionStatus | undefined;
@@ -224,6 +299,7 @@ router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
       include: {
         invites: { select: { id: true, status: true } },
         source: { select: { title: true } },
+        poem: { select: { id: true, title: true, publishedAt: true } },
       },
     });
 

@@ -122,6 +122,34 @@ function SessionsTab({ authToken }: Props) {
     }
   };
 
+  const unpublish = async (sessionId: string) => {
+    setPublishingId(sessionId);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/sessions/${sessionId}/publish`,
+        {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${authToken}` },
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(
+          typeof data.message === "string"
+            ? data.message
+            : "Failed to unpublish session",
+        );
+        return;
+      }
+      setOpenPublishId(null);
+      setPublishDraft({ title: "", body: "" });
+      await loadSessions();
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
   const setPublishDraftFromWords = (
     sessionId: string,
     title: string,
@@ -240,9 +268,20 @@ function SessionsTab({ authToken }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="primary"
-                      onClick={() => void submitPublish(session.id)}
+                      disabled={publishingId === session.id}
+                      onClick={() =>
+                        void (session.poem?.publishedAt
+                          ? unpublish(session.id)
+                          : submitPublish(session.id))
+                      }
                     >
-                      {session.poem?.publishedAt ? "Unpublish" : "Publish"}
+                      {publishingId === session.id
+                        ? session.poem?.publishedAt
+                          ? "Unpublishing…"
+                          : "Publishing…"
+                        : session.poem?.publishedAt
+                          ? "Unpublish"
+                          : "Publish"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -316,11 +355,19 @@ function SessionsTab({ authToken }: Props) {
                       <Button
                         variant="primary"
                         disabled={publishingId === session.id}
-                        onClick={() => void submitPublish(session.id)}
+                        onClick={() =>
+                          void (session.poem?.publishedAt
+                            ? unpublish(session.id)
+                            : submitPublish(session.id))
+                        }
                       >
                         {publishingId === session.id
-                          ? "Publishing…"
-                          : "Publish poem"}
+                          ? session.poem?.publishedAt
+                            ? "Unpublishing…"
+                            : "Publishing…"
+                          : session.poem?.publishedAt
+                            ? "Unpublish poem"
+                            : "Publish poem"}
                       </Button>
                       {session.poem?.publishedAt && (
                         <span className="text-xs text-ink-600">

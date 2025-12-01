@@ -16,6 +16,7 @@ import Timer from "./Timer";
 function ParticipantView({
   sessionId,
   token,
+  inviteToken,
   supabaseUrl,
   supabaseKey,
 }: ParticipantProps) {
@@ -72,6 +73,24 @@ function ParticipantView({
       }
     };
   }, [sessionId, updatePhase]);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/invites/accept`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, token: inviteToken }),
+        });
+        if (!response.ok) {
+          console.warn("Failed to mark invite accepted", await response.text());
+        }
+      } catch (error) {
+        console.error("Error marking invite accepted", error);
+      }
+    })();
+  }, [inviteToken, sessionId]);
 
   useEffect(() => {
     async function loadWords() {

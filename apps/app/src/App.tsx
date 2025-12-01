@@ -13,7 +13,8 @@ import { randomHex } from "./utils/random";
 export default function App() {
   const search = new URLSearchParams(window.location.search);
   const sessionId = search.get("sessionId");
-  const token = search.get("token") ?? randomHex();
+  const inviteToken = search.get("token");
+  const token = inviteToken ?? randomHex();
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfigState>(
     () => ({
       url: INITIAL_SUPABASE_URL,
@@ -72,6 +73,7 @@ export default function App() {
       <ParticipantView
         sessionId={sessionId}
         token={token}
+        inviteToken={inviteToken}
         supabaseUrl={supabaseConfig.url}
         supabaseKey={supabaseConfig.anonKey}
       />

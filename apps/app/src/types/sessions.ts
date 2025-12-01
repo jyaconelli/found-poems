@@ -39,6 +39,7 @@ export type SessionMeta = {
 export type ParticipantProps = {
   sessionId: string;
   token: string;
+  inviteToken?: string | null;
   supabaseUrl: string;
   supabaseKey: string;
 };
