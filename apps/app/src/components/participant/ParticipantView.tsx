@@ -26,6 +26,7 @@ function ParticipantView({
   const [connected, setConnected] = useState(0);
   const [etaMs, setEtaMs] = useState(0);
   const [busyWord, setBusyWord] = useState<string | null>(null);
+  const [atCapacity, setAtCapacity] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const supabase = useMemo(() => {
@@ -62,6 +63,7 @@ function ParticipantView({
         startsAt: starts.toISOString(),
         endsAt: ends.toISOString(),
         totalInvites: data.session.invites.length,
+        maxParticipants: data.session.stream?.maxParticipants ?? null,
       });
       updatePhase(starts.getTime(), ends.getTime());
     }
@@ -114,6 +116,11 @@ function ParticipantView({
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<Record<string, unknown>>();
       const count = Object.keys(state).length;
+      const overCapacity =
+        session?.maxParticipants !== undefined &&
+        session?.maxParticipants !== null &&
+        count >= session.maxParticipants;
+      setAtCapacity(Boolean(overCapacity));
       setConnected(count);
     });
 
@@ -133,6 +140,16 @@ function ParticipantView({
 
     channel.subscribe((status: string) => {
       if (status === "SUBSCRIBED") {
+        const state = channel.presenceState<Record<string, unknown>>();
+        const count = Object.keys(state).length;
+        if (
+          session?.maxParticipants &&
+          count >= session.maxParticipants
+        ) {
+          setAtCapacity(true);
+          supabase.removeChannel(channel);
+          return;
+        }
         channel.track({ joinedAt: new Date().toISOString() });
       }
     });
@@ -141,7 +158,7 @@ function ParticipantView({
       channelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [sessionId, supabase, token]);
+  }, [sessionId, supabase, token, session?.maxParticipants]);
 
   useEffect(() => {
     if (!session) return;
@@ -152,7 +169,7 @@ function ParticipantView({
   }, [session, updatePhase]);
 
   async function handleBlackout(wordId: string) {
-    if (phase !== "active") return;
+    if (phase !== "active" || atCapacity) return;
     setBusyWord(wordId);
     try {
       const response = await fetch(`${API_BASE}/api/words/${wordId}/hide`, {
@@ -208,6 +225,12 @@ function ParticipantView({
           {session && <Timer etaMs={etaMs} phase={phase} />}
         </div>
       </header>
+      {atCapacity && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This stream is at its max collaborators right now. Try again after a
+          spot opens.
+        </div>
+      )}
 
       {phase === "lobby" && <Lobby etaMs={etaMs} />}
       {phase === "active" && (

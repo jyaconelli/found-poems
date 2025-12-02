@@ -58,6 +58,9 @@ function AdminScheduler({
         <NavLink to="/admin/sessions" className={navClasses}>
           View Sessions
         </NavLink>
+        <NavLink to="/admin/rss-streams" className={navClasses}>
+          RSS Poem Streams
+        </NavLink>
       </div>
 
       <Outlet context={{ authToken }} />

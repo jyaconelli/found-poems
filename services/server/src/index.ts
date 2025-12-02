@@ -7,6 +7,8 @@ import { healthRouter } from "./routes/health";
 import { poemsRouter } from "./routes/poems";
 import { publicConfigRouter } from "./routes/publicConfig";
 import { sessionsRouter } from "./routes/sessions";
+import { rssStreamsRouter } from "./routes/rssStreams";
+import { startRssStreamPoller } from "./tasks/rssPoller";
 import { startStatusRefresh } from "./tasks/statusRefresh";
 import { handleError } from "./utils/handleError";
 
@@ -18,6 +20,7 @@ app.use(healthRouter);
 app.use(sessionsRouter);
 app.use(poemsRouter);
 app.use(publicConfigRouter);
+app.use(rssStreamsRouter);
 
 app.use(
   (
@@ -31,6 +34,7 @@ app.use(
 );
 
 const statusInterval = startStatusRefresh();
+const rssInterval = startRssStreamPoller();
 
 const server = app.listen(config.port, () => {
   console.log(
@@ -40,6 +44,7 @@ const server = app.listen(config.port, () => {
 
 const shutdown = async () => {
   clearInterval(statusInterval);
+  clearInterval(rssInterval);
   await prisma.$disconnect();
   server.close(() => process.exit(0));
 };

@@ -16,14 +16,16 @@ enum SessionStatus {
 }
 
 model Session {
-  id          String        @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
   sourceId    String
   startsAt    DateTime
   endsAt      DateTime
-  status      SessionStatus @default(scheduled)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  status      SessionStatus  @default(scheduled)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  stream      RssPoemStream? @relation(fields: [streamId], references: [id])
+  streamId    String?
   words       Word[]
   invites     SessionInvite[]
   poem        PublishedPoem?
@@ -84,4 +86,36 @@ model PublishedPoem {
   publishedAt DateTime?
 
   @@map("published_poems")
+}
+
+model RssPoemStream {
+  id               String                   @id @default(uuid())
+  title            String
+  slug             String                   @unique
+  rssUrl           String
+  maxParticipants  Int
+  minParticipants  Int
+  durationMinutes  Int
+  timeOfDay        String
+  autoPublish      Boolean                  @default(false)
+  lastItemGuid     String?
+  lastItemPublishedAt DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  sessions         Session[]
+  collaborators    RssStreamCollaborator[]
+
+  @@map("rss_poem_streams")
+}
+
+model RssStreamCollaborator {
+  id         String        @id @default(uuid())
+  stream     RssPoemStream @relation(fields: [streamId], references: [id])
+  streamId   String
+  email      String
+  createdAt  DateTime      @default(now())
+  lastInvitedAt DateTime?
+
+  @@unique([streamId, email])
+  @@map("rss_stream_collaborators")
 }

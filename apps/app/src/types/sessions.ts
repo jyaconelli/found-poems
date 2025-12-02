@@ -7,6 +7,7 @@ export type AdminSession = {
   startsAt: string;
   endsAt: string;
   source: { title: string };
+  stream?: { id: string; title: string; slug: string } | null;
   invites: { id: string; status: string }[];
   poem?: { id: string; title: string; publishedAt: string | null } | null;
 };
@@ -34,6 +35,7 @@ export type SessionMeta = {
   startsAt: string;
   endsAt: string;
   totalInvites: number;
+  maxParticipants?: number | null;
 };
 
 export type ParticipantProps = {

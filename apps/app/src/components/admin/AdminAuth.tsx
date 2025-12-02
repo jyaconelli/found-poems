@@ -5,6 +5,7 @@ import AdminScheduler from "./AdminScheduler";
 import CreateSessionPage from "./CreateSessionPage";
 import LoginPage from "./LoginPage";
 import SessionsPage from "./SessionsPage";
+import RssStreamsPage from "./RssStreamsPage";
 
 type Props = {
   supabaseUrl: string;
@@ -103,6 +104,7 @@ function AdminAuth({ supabaseUrl, supabaseKey }: Props) {
         <Route index element={<Navigate to="create" replace />} />
         <Route path="create" element={<CreateSessionPage />} />
         <Route path="sessions" element={<SessionsPage />} />
+        <Route path="rss-streams" element={<RssStreamsPage />} />
       </Route>
       <Route
         path="*"

@@ -132,6 +132,7 @@ router.get("/api/sessions/:id", async (req, res) => {
           },
         },
         source: { select: { id: true, title: true } },
+        stream: { select: { id: true, maxParticipants: true } },
         poem: { select: { id: true, title: true, publishedAt: true } },
       },
     });
@@ -299,6 +300,7 @@ router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
       include: {
         invites: { select: { id: true, status: true } },
         source: { select: { title: true } },
+        stream: { select: { id: true, title: true, slug: true } },
         poem: { select: { id: true, title: true, publishedAt: true } },
       },
     });

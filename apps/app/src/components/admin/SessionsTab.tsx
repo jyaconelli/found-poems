@@ -293,6 +293,11 @@ function SessionsTab({ authToken }: Props) {
                       Starts: {formatPst(session.startsAt)} · Ends:{" "}
                       {formatPst(session.endsAt)}
                     </p>
+                    {session.stream && (
+                      <p className="text-xs text-ink-500">
+                        Stream: {session.stream.title} ({session.stream.slug})
+                      </p>
+                    )}
                     <p className="text-xs text-ink-500">
                       Invites accepted {accepted}/{invited}
                     </p>

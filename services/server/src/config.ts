@@ -9,6 +9,7 @@ export const config = {
     .filter(Boolean),
   jwtSecret: process.env.SUPABASE_JWT_SECRET,
   statusRefreshIntervalMs: 60_000,
+  rssPollIntervalMs: Number(process.env.RSS_POLL_INTERVAL_MS ?? 300_000),
   supabaseUrl: process.env.SUPABASE_URL ?? null,
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? null,
   herokuReleaseVersion: process.env.HEROKU_RELEASE_VERSION ?? "<UNKNOWN>",
