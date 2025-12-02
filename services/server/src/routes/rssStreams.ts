@@ -5,7 +5,7 @@ import { requireAdmin } from "../middleware/requireAdmin";
 import { handleError } from "../utils/handleError";
 import { slugify } from "../utils/slugify";
 
-const router = Router();
+const router: Router = Router();
 
 const createStreamSchema = z
   .object({
