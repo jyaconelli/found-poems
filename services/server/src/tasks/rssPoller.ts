@@ -146,36 +146,32 @@ export async function syncRssStreams() {
 
       if (!items.length) continue;
 
+      // pick most recent item only
+      const latest = items
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.publishedAt?.getTime() ?? 0) -
+            (a.publishedAt?.getTime() ?? 0),
+        )[0];
+
+      if (!latest) continue;
+
       const lastTime = stream.lastItemPublishedAt
         ? new Date(stream.lastItemPublishedAt).getTime()
         : null;
 
-      const newItems = items
-        .sort(
-          (a, b) =>
-            (a.publishedAt?.getTime() ?? 0) -
-            (b.publishedAt?.getTime() ?? 0),
-        )
-        .filter((item) => {
-          if (stream.lastItemGuid && item.guid === stream.lastItemGuid) {
-            return (
-              lastTime !== null &&
-              item.publishedAt.getTime() > (lastTime ?? 0)
-            );
-          }
-          if (lastTime !== null) {
-            return item.publishedAt.getTime() > lastTime;
-          }
-          return true;
-        });
+      const alreadyUsed =
+        (stream.lastItemGuid && latest.guid === stream.lastItemGuid) ||
+        (lastTime !== null &&
+          latest.publishedAt.getTime() <= lastTime);
 
-      if (!newItems.length) continue;
-
-      for (const item of newItems) {
-        await createSessionFromItem(stream, item);
+      if (alreadyUsed) {
+        continue;
       }
 
-      const latest = newItems[newItems.length - 1];
+      await createSessionFromItem(stream, latest);
+
       await prisma.rssPoemStream.update({
         where: { id: stream.id },
         data: {
