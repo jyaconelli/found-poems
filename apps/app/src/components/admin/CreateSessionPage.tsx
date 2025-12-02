@@ -10,20 +10,14 @@ import CreateSessionForm from "./CreateSessionForm";
 
 function CreateSessionPage() {
   const { authToken } = useOutletContext<AdminOutletContext>();
-  const defaultSource = `We stood at the shoreline, collecting words that felt half-remembered and
-half-new. Thunderheads gathered to the west, but the workshop continued and we
-kept striking lines, trusting that the time-box would carry us through.`;
-
-  const [title, setTitle] = useState("Evening Lab");
+  const [title, setTitle] = useState("");
   const [startsAtLocal, setStartsAtLocal] = useState(() =>
     formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)),
   );
   const [durationMinutes, setDurationMinutes] = useState(10);
-  const [sourceTitle, setSourceTitle] = useState("Found Objects");
-  const [sourceBody, setSourceBody] = useState(defaultSource);
-  const [inviteList, setInviteList] = useState(
-    "poet@example.com, collaborator@example.com",
-  );
+  const [sourceTitle, setSourceTitle] = useState("");
+  const [sourceBody, setSourceBody] = useState("");
+  const [inviteList, setInviteList] = useState("");
   const [status, setStatus] = useState<
     "idle" | "pending" | "success" | "error"
   >("idle");

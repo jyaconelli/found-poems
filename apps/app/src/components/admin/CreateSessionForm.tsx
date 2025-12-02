@@ -51,6 +51,7 @@ function CreateSessionForm({
           <input
             className="rounded border border-ink-200 px-3 py-2"
             value={title}
+            placeholder="Evening Lab"
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
@@ -71,6 +72,7 @@ function CreateSessionForm({
             max={60}
             className="rounded border border-ink-200 px-3 py-2"
             value={durationMinutes}
+            placeholder="10"
             onChange={(event) => setDurationMinutes(Number(event.target.value))}
           />
         </label>
@@ -80,6 +82,7 @@ function CreateSessionForm({
             className="rounded border border-ink-200 px-3 py-2"
             rows={3}
             value={inviteList}
+            placeholder="poet@example.com, collaborator@example.com"
             onChange={(event) => setInviteList(event.target.value)}
           />
           <span className="text-xs text-ink-500">
@@ -94,6 +97,7 @@ function CreateSessionForm({
           <input
             className="rounded border border-ink-200 px-3 py-2"
             value={sourceTitle}
+            placeholder="Found Objects"
             onChange={(event) => setSourceTitle(event.target.value)}
           />
         </label>
@@ -103,6 +107,7 @@ function CreateSessionForm({
             className="rounded border border-ink-200 px-3 py-2"
             rows={6}
             value={sourceBody}
+            placeholder="Paste the source text that collaborators will blackout"
             onChange={(event) => setSourceBody(event.target.value)}
           />
         </label>
