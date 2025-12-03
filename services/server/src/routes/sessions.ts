@@ -300,7 +300,9 @@ router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
     let cursorId: string | null = null;
     if (cursorRaw) {
       try {
-        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        const parsed = JSON.parse(
+          Buffer.from(cursorRaw, "base64url").toString("utf8"),
+        );
         cursorDate = parsed.startsAt ? new Date(parsed.startsAt) : null;
         cursorId = typeof parsed.id === "string" ? parsed.id : null;
       } catch (err) {
@@ -322,10 +324,7 @@ router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
 
     const sessions = await prisma.session.findMany({
       where,
-      orderBy: [
-        { startsAt: "desc" },
-        { id: "desc" },
-      ],
+      orderBy: [{ startsAt: "desc" }, { id: "desc" }],
       include: {
         invites: { select: { id: true, status: true } },
         source: { select: { title: true } },

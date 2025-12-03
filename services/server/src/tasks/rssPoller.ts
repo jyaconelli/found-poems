@@ -28,25 +28,24 @@ function deriveGuid(item: Item) {
 function deriveContent(item: Item) {
   const encoded =
     (item as { "content:encoded"?: string })["content:encoded"] ?? "";
-  return (
-    item.contentSnippet ??
-    item.content ??
-    item.summary ??
-    encoded ??
-    ""
-  );
+  return item.contentSnippet ?? item.content ?? item.summary ?? encoded ?? "";
 }
 
-function joinContentFromPaths(item: Item, paths: any) {
+function joinContentFromPaths(item: Item, paths: unknown) {
   if (!Array.isArray(paths) || !paths.length) return deriveContent(item);
   const values: string[] = [];
   for (const rawPath of paths) {
     if (typeof rawPath !== "string") continue;
     const parts = rawPath.split("/").filter(Boolean);
-    let cursor: any = item;
+    let cursor: unknown = item as unknown;
     for (const segment of parts) {
       if (cursor === undefined || cursor === null) break;
-      cursor = cursor[segment as keyof typeof cursor];
+      if (typeof cursor === "object" && cursor !== null && segment in cursor) {
+        cursor = (cursor as Record<string, unknown>)[segment];
+      } else {
+        cursor = undefined;
+        break;
+      }
     }
     if (typeof cursor === "string" || typeof cursor === "number") {
       values.push(String(cursor));
@@ -78,15 +77,13 @@ async function createSessionFromItem(
     maxParticipants: number;
     durationMinutes: number;
     timeOfDay: string;
-    contentPaths?: any;
+    contentPaths?: string[] | null;
     collaborators: { email: string }[];
   },
   item: ParsedItem,
 ) {
   const startsAt = nextStartTime(stream.timeOfDay, item.publishedAt);
-  const endsAt = new Date(
-    startsAt.getTime() + stream.durationMinutes * 60_000,
-  );
+  const endsAt = new Date(startsAt.getTime() + stream.durationMinutes * 60_000);
 
   const source = await prisma.sourceText.create({
     data: { title: item.title || stream.title, body: item.content },
@@ -159,7 +156,10 @@ export async function syncRssStreams() {
           .map((item) => ({
             guid: deriveGuid(item),
             title: item.title ?? stream.title,
-            content: joinContentFromPaths(item, (stream as any).contentPaths),
+            content: joinContentFromPaths(
+              item,
+              (stream as { contentPaths?: string[] | null }).contentPaths,
+            ),
             publishedAt: derivePublishedAt(item),
             raw: item,
           }))
@@ -172,8 +172,7 @@ export async function syncRssStreams() {
         .slice()
         .sort(
           (a, b) =>
-            (b.publishedAt?.getTime() ?? 0) -
-            (a.publishedAt?.getTime() ?? 0),
+            (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0),
         )[0];
 
       if (!latest) continue;
@@ -184,8 +183,7 @@ export async function syncRssStreams() {
 
       const alreadyUsed =
         (stream.lastItemGuid && latest.guid === stream.lastItemGuid) ||
-        (lastTime !== null &&
-          latest.publishedAt.getTime() <= lastTime);
+        (lastTime !== null && latest.publishedAt.getTime() <= lastTime);
 
       if (alreadyUsed) {
         continue;

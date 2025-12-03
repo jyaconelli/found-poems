@@ -142,10 +142,7 @@ function ParticipantView({
       if (status === "SUBSCRIBED") {
         const state = channel.presenceState<Record<string, unknown>>();
         const count = Object.keys(state).length;
-        if (
-          session?.maxParticipants &&
-          count >= session.maxParticipants
-        ) {
+        if (session?.maxParticipants && count >= session.maxParticipants) {
           setAtCapacity(true);
           supabase.removeChannel(channel);
           return;

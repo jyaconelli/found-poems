@@ -12,7 +12,9 @@ router.get("/api/poems", async (req, res) => {
     let cursorId: string | null = null;
     if (cursorRaw) {
       try {
-        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        const parsed = JSON.parse(
+          Buffer.from(cursorRaw, "base64url").toString("utf8"),
+        );
         cursorDate = parsed.createdAt ? new Date(parsed.createdAt) : null;
         cursorId = typeof parsed.id === "string" ? parsed.id : null;
       } catch (err) {
@@ -30,10 +32,7 @@ router.get("/api/poems", async (req, res) => {
               ],
             }
           : undefined,
-      orderBy: [
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
       select: {
         id: true,

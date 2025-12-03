@@ -110,8 +110,9 @@ function RssStreamsTab({ authToken }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
-  const [validation, setValidation] =
-    useState<StreamValidationPreview | null>(null);
+  const [validation, setValidation] = useState<StreamValidationPreview | null>(
+    null,
+  );
   const [tree, setTree] = useState<StreamValidationTree | null>(null);
   const [phase, setPhase] = useState<"edit" | "preview">("edit");
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
@@ -150,7 +151,7 @@ function RssStreamsTab({ authToken }: Props) {
         }
         if (active) {
           setStreams((prev) =>
-            append ? [...prev, ...(data.streams ?? [])] : data.streams ?? [],
+            append ? [...prev, ...(data.streams ?? [])] : (data.streams ?? []),
           );
           setNextCursor(data.nextCursor ?? null);
         }
@@ -256,14 +257,17 @@ function RssStreamsTab({ authToken }: Props) {
     setValidating(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/rss-streams/validate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          authorization: `Bearer ${authToken}`,
+      const response = await fetch(
+        `${API_BASE}/api/admin/rss-streams/validate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ ...draft, contentPaths: selectedPaths }),
         },
-        body: JSON.stringify({ ...draft, contentPaths: selectedPaths }),
-      });
+      );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
@@ -283,7 +287,9 @@ function RssStreamsTab({ authToken }: Props) {
       setValidation(null);
       setTree(null);
       setPhase("edit");
-      setError(err instanceof Error ? err.message : "Unable to validate stream");
+      setError(
+        err instanceof Error ? err.message : "Unable to validate stream",
+      );
     } finally {
       setValidating(false);
     }
@@ -395,18 +401,19 @@ function RssStreamsTab({ authToken }: Props) {
                     {stream.slug}
                   </p>
                   <h3 className="text-lg font-semibold">{stream.title}</h3>
+                  <p className="text-xs text-ink-500">RSS: {stream.rssUrl}</p>
                   <p className="text-xs text-ink-500">
-                    RSS: {stream.rssUrl}
-                  </p>
-                  <p className="text-xs text-ink-500">
-                    Time: {stream.timeOfDay} · Duration: {stream.durationMinutes}
-                    m · Min/Max: {stream.minParticipants}/
-                    {stream.maxParticipants}
+                    Time: {stream.timeOfDay} · Duration:{" "}
+                    {stream.durationMinutes}m · Min/Max:{" "}
+                    {stream.minParticipants}/{stream.maxParticipants}
                   </p>
                   <p className="text-xs text-ink-500">
                     Collaborators:{" "}
-                    {stream._count?.collaborators ?? stream.collaboratorCount ?? 0}
-                    {" · "}Sessions: {stream._count?.sessions ?? stream.sessionsCount ?? 0}
+                    {stream._count?.collaborators ??
+                      stream.collaboratorCount ??
+                      0}
+                    {" · "}Sessions:{" "}
+                    {stream._count?.sessions ?? stream.sessionsCount ?? 0}
                   </p>
                   {stream.autoPublish && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
@@ -421,7 +428,11 @@ function RssStreamsTab({ authToken }: Props) {
                       {new Date(stream.lastItemPublishedAt).toLocaleString()}
                     </span>
                   )}
-                  <span>Created: {stream.createdAt && new Date(stream.createdAt).toLocaleString()}</span>
+                  <span>
+                    Created:{" "}
+                    {stream.createdAt &&
+                      new Date(stream.createdAt).toLocaleString()}
+                  </span>
                 </div>
               </div>
               <div className="mt-2 text-xs text-ink-500">
@@ -474,7 +485,9 @@ function RssStreamsTab({ authToken }: Props) {
                             : "Failed to delete stream",
                         );
                       }
-                      setStreams((prev) => prev.filter((s) => s.id !== stream.id));
+                      setStreams((prev) =>
+                        prev.filter((s) => s.id !== stream.id),
+                      );
                     } catch (err) {
                       console.error(err);
                       setError(
@@ -503,7 +516,9 @@ function RssStreamsTab({ authToken }: Props) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">
-                  {editingStream ? "Edit RSS Poem Stream" : "New RSS Poem Stream"}
+                  {editingStream
+                    ? "Edit RSS Poem Stream"
+                    : "New RSS Poem Stream"}
                 </p>
                 <h3 className="text-xl font-semibold">
                   {editingStream ? "Update stream" : "Create stream"}
@@ -651,11 +666,11 @@ function RssStreamsTab({ authToken }: Props) {
                       {validation.sessionTitle || validation.itemTitle}
                     </h4>
                     <p className="text-xs text-ink-600">
-                      Latest feed item published {" "}
+                      Latest feed item published{" "}
                       {new Date(validation.itemPublishedAt).toLocaleString()}
                     </p>
                     <p className="text-xs text-ink-600">
-                      Next session starts at {" "}
+                      Next session starts at{" "}
                       {new Date(validation.startsAt).toLocaleString()}
                     </p>
                   </div>
@@ -686,48 +701,48 @@ function RssStreamsTab({ authToken }: Props) {
               <Button variant="ghost" onClick={resetModal}>
                 Cancel
               </Button>
-                  {phase === "preview" ? (
-                    <>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setPhase("edit");
-                          setValidation(null);
-                          setTree(null);
-                        }}
-                      >
-                        Back to edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={validating}
-                        onClick={() => void validateStream()}
-                      >
-                        {validating ? "Updating…" : "Update preview"}
-                      </Button>
-                      <Button
-                        variant="primary"
-                        disabled={saving}
-                        onClick={() => void createStream()}
-                      >
-                        {saving
-                          ? editingStream
-                            ? "Saving…"
-                            : "Creating…"
-                          : editingStream
-                            ? "Save changes"
-                            : "Create stream"}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="primary"
+              {phase === "preview" ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setPhase("edit");
+                      setValidation(null);
+                      setTree(null);
+                    }}
+                  >
+                    Back to edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={validating}
+                    onClick={() => void validateStream()}
+                  >
+                    {validating ? "Updating…" : "Update preview"}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={saving}
+                    onClick={() => void createStream()}
+                  >
+                    {saving
+                      ? editingStream
+                        ? "Saving…"
+                        : "Creating…"
+                      : editingStream
+                        ? "Save changes"
+                        : "Create stream"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="primary"
                   disabled={validating}
                   onClick={() => void validateStream()}
                 >
-                      {validating ? "Validating…" : "Validate stream"}
-                    </Button>
-                  )}
+                  {validating ? "Validating…" : "Validate stream"}
+                </Button>
+              )}
             </div>
           </div>
         </div>

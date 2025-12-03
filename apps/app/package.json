@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "preview": "vite preview",
     "lint": "biome check src",
     "clean": "rimraf dist"
@@ -23,12 +25,21 @@
     "@found-poems/tsconfig": "workspace:*",
     "@types/react": "18.3.5",
     "@types/react-dom": "18.3.0",
+    "@storybook/addon-essentials": "8.6.14",
+    "@storybook/addon-interactions": "8.6.14",
+    "@storybook/addon-links": "8.6.14",
+    "@storybook/blocks": "8.6.14",
+    "@storybook/react": "8.6.14",
+    "@storybook/react-vite": "8.6.14",
+    "@storybook/test": "8.6.14",
+    "storybook": "8.6.14",
     "@vitejs/plugin-react-swc": "3.7.1",
     "autoprefixer": "10.4.20",
     "postcss": "8.4.47",
     "rimraf": "6.0.1",
     "tailwindcss": "3.4.16",
     "typescript": "5.6.3",
-    "vite": "5.4.8"
+    "vite": "5.4.8",
+    "vite-tsconfig-paths": "4.3.2"
   }
 }

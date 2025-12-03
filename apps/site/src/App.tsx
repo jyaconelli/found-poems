@@ -55,54 +55,53 @@ function HomePage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const loadPoems = useCallback(
-    async (cursor?: string, append = false) => {
-      append ? setLoadingMore(true) : setLoading(true);
-      try {
-        const params = new URLSearchParams({ limit: "10" });
-        if (cursor) params.set("cursor", cursor);
-        const response = await fetch(`${API_BASE}/api/poems?${params.toString()}`);
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message ?? "Failed to load poems");
-        }
-        const newPoems: Poem[] = data.poems ?? [];
-        setPoems((prev) => (append ? [...prev, ...newPoems] : newPoems));
-        setNextCursor(data.nextCursor ?? null);
-
-        if (newPoems.length > 0) {
-          setLoadingWords(true);
-          const wordResults = await Promise.all(
-            newPoems.map(async (poem: Poem) => {
-              const resp = await fetch(
-                `${API_BASE}/api/sessions/${poem.sessionId}/words`,
-              );
-              const json = await resp.json().catch(() => ({}));
-              if (!resp.ok) return { sessionId: poem.sessionId, words: [] };
-              const sorted =
-                (json.words ?? []).sort(
-                  (a: Word, b: Word) => a.index - b.index,
-                ) ?? [];
-              return { sessionId: poem.sessionId, words: sorted };
-            }),
-          );
-          setWordsBySession((prev) => ({
-            ...prev,
-            ...wordResults.reduce<Record<string, Word[]>>((acc, item) => {
-              acc[item.sessionId] = item.words;
-              return acc;
-            }, {}),
-          }));
-          setLoadingWords(false);
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        append ? setLoadingMore(false) : setLoading(false);
+  const loadPoems = useCallback(async (cursor?: string, append = false) => {
+    append ? setLoadingMore(true) : setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "10" });
+      if (cursor) params.set("cursor", cursor);
+      const response = await fetch(
+        `${API_BASE}/api/poems?${params.toString()}`,
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to load poems");
       }
-    },
-    [],
-  );
+      const newPoems: Poem[] = data.poems ?? [];
+      setPoems((prev) => (append ? [...prev, ...newPoems] : newPoems));
+      setNextCursor(data.nextCursor ?? null);
+
+      if (newPoems.length > 0) {
+        setLoadingWords(true);
+        const wordResults = await Promise.all(
+          newPoems.map(async (poem: Poem) => {
+            const resp = await fetch(
+              `${API_BASE}/api/sessions/${poem.sessionId}/words`,
+            );
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) return { sessionId: poem.sessionId, words: [] };
+            const sorted =
+              (json.words ?? []).sort(
+                (a: Word, b: Word) => a.index - b.index,
+              ) ?? [];
+            return { sessionId: poem.sessionId, words: sorted };
+          }),
+        );
+        setWordsBySession((prev) => ({
+          ...prev,
+          ...wordResults.reduce<Record<string, Word[]>>((acc, item) => {
+            acc[item.sessionId] = item.words;
+            return acc;
+          }, {}),
+        }));
+        setLoadingWords(false);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      append ? setLoadingMore(false) : setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadPoems();
@@ -194,7 +193,8 @@ function StreamPage({ slug }: { slug: string }) {
           `${API_BASE}/api/poem-streams/${slug}?${params.toString()}`,
         );
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message ?? "Failed to load stream");
+        if (!response.ok)
+          throw new Error(data.message ?? "Failed to load stream");
 
         if (!append) setStream(data.stream);
         const newPoems: Poem[] = data.poems ?? [];
@@ -269,8 +269,11 @@ function StreamPage({ slug }: { slug: string }) {
         },
       );
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message ?? "Unable to join stream");
-      setMessage("You're on the collaborator list. Watch your inbox for invites!");
+      if (!response.ok)
+        throw new Error(data.message ?? "Unable to join stream");
+      setMessage(
+        "You're on the collaborator list. Watch your inbox for invites!",
+      );
       setEmail("");
     } catch (err) {
       console.error(err);
@@ -337,7 +340,9 @@ function StreamPage({ slug }: { slug: string }) {
       </div>
 
       <section className="mt-6 w-full max-w-3xl text-left">
-        <h2 className="mb-3 text-lg font-semibold text-white">Published poems</h2>
+        <h2 className="mb-3 text-lg font-semibold text-white">
+          Published poems
+        </h2>
         {poems.length === 0 && (
           <p className="text-sm text-neutral-300">
             No poems for this stream yet. Check back after the next session.

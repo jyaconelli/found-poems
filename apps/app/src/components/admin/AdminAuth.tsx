@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AdminScheduler from "./AdminScheduler";
 import LoginPage from "./LoginPage";
-import SessionsPage from "./SessionsPage";
 import RssStreamsPage from "./RssStreamsPage";
+import SessionsPage from "./SessionsPage";
 
 type Props = {
   supabaseUrl: string;
@@ -106,7 +106,9 @@ function AdminAuth({ supabaseUrl, supabaseKey }: Props) {
       </Route>
       <Route
         path="*"
-        element={<Navigate to={session ? "/admin/sessions" : "/login"} replace />}
+        element={
+          <Navigate to={session ? "/admin/sessions" : "/login"} replace />
+        }
       />
     </Routes>
   );

@@ -9,3 +9,5 @@ services/**/dist
 .idea
 .vscode
 .turbo
+apps/app/storybook-static
+apps/app/.storybook-cache

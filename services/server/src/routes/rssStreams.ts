@@ -1,5 +1,5 @@
-import RSSParser, { type Item } from "rss-parser";
 import { Router } from "express";
+import RSSParser, { type Item } from "rss-parser";
 import { z } from "zod";
 import { prisma } from "../clients/prisma";
 import { requireAdmin } from "../middleware/requireAdmin";
@@ -20,7 +20,10 @@ const baseStreamSchema = z.object({
   timeOfDay: z
     .string()
     .trim()
-    .regex(/^([0-1]?\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24h, e.g. 9:00 or 09:00)"),
+    .regex(
+      /^([0-1]?\d|2[0-3]):[0-5]\d$/,
+      "Use HH:MM (24h, e.g. 9:00 or 09:00)",
+    ),
   autoPublish: z.coerce.boolean().optional().default(false),
   contentPaths: contentPathsSchema,
 });
@@ -62,13 +65,7 @@ function deriveGuid(item: Item) {
 function deriveContent(item: Item) {
   const encoded =
     (item as { "content:encoded"?: string })["content:encoded"] ?? "";
-  return (
-    item.contentSnippet ??
-    item.content ??
-    item.summary ??
-    encoded ??
-    ""
-  );
+  return item.contentSnippet ?? item.content ?? item.summary ?? encoded ?? "";
 }
 
 function derivePublishedAt(item: Item) {
@@ -83,10 +80,15 @@ function joinContentFromPaths(item: Item, paths: string[] | null | undefined) {
   const values: string[] = [];
   for (const path of paths) {
     const parts = path.split("/").filter(Boolean);
-    let cursor: any = item;
+    let cursor: unknown = item as unknown;
     for (const segment of parts) {
       if (cursor === undefined || cursor === null) break;
-      cursor = cursor[segment as keyof typeof cursor];
+      if (typeof cursor === "object" && cursor !== null && segment in cursor) {
+        cursor = (cursor as Record<string, unknown>)[segment];
+      } else {
+        cursor = undefined;
+        break;
+      }
     }
     if (typeof cursor === "string" || typeof cursor === "number") {
       values.push(String(cursor));
@@ -104,7 +106,12 @@ type TreeNode = {
   children?: TreeNode[];
 };
 
-function buildTree(value: unknown, key: string, path: string, depth = 0): TreeNode {
+function buildTree(
+  value: unknown,
+  key: string,
+  path: string,
+  depth = 0,
+): TreeNode {
   const nodeType = Array.isArray(value)
     ? "array"
     : value === null
@@ -115,7 +122,12 @@ function buildTree(value: unknown, key: string, path: string, depth = 0): TreeNo
     return { path, key, type: nodeType, preview: "(depth limit)" };
   }
 
-  if (nodeType === "string" || nodeType === "number" || nodeType === "boolean" || nodeType === "null") {
+  if (
+    nodeType === "string" ||
+    nodeType === "number" ||
+    nodeType === "boolean" ||
+    nodeType === "null"
+  ) {
     const preview =
       typeof value === "string"
         ? value
@@ -134,7 +146,14 @@ function buildTree(value: unknown, key: string, path: string, depth = 0): TreeNo
   } else if (typeof value === "object" && value) {
     for (const childKey of Object.keys(value)) {
       const childPath = `${path}/${childKey}`;
-      children.push(buildTree((value as Record<string, unknown>)[childKey], childKey, childPath, depth + 1));
+      children.push(
+        buildTree(
+          (value as Record<string, unknown>)[childKey],
+          childKey,
+          childPath,
+          depth + 1,
+        ),
+      );
     }
   }
 
@@ -175,7 +194,9 @@ router.get("/api/admin/rss-streams", requireAdmin, async (_req, res) => {
     let cursorId: string | null = null;
     if (cursorRaw) {
       try {
-        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        const parsed = JSON.parse(
+          Buffer.from(cursorRaw, "base64url").toString("utf8"),
+        );
         cursorDate = parsed.createdAt ? new Date(parsed.createdAt) : null;
         cursorId = typeof parsed.id === "string" ? parsed.id : null;
       } catch (err) {
@@ -193,10 +214,7 @@ router.get("/api/admin/rss-streams", requireAdmin, async (_req, res) => {
               ],
             }
           : undefined,
-      orderBy: [
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
       include: {
         _count: { select: { collaborators: true, sessions: true } },
@@ -220,70 +238,75 @@ router.get("/api/admin/rss-streams", requireAdmin, async (_req, res) => {
   }
 });
 
-router.post("/api/admin/rss-streams/validate", requireAdmin, async (req, res) => {
-  try {
-    const payload = createStreamSchema.parse(req.body);
+router.post(
+  "/api/admin/rss-streams/validate",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const payload = createStreamSchema.parse(req.body);
 
-    const feed = await parser.parseURL(payload.rssUrl);
-    const items: ParsedItem[] =
-      (feed.items ?? [])
-        .map((item) => ({
-          guid: deriveGuid(item),
-          title: item.title ?? payload.title,
-          content: joinContentFromPaths(item, payload.contentPaths),
-          publishedAt: derivePublishedAt(item),
-          raw: item,
-        }))
-        .filter((item) => item.content.trim().length > 0) ?? [];
+      const feed = await parser.parseURL(payload.rssUrl);
+      const items: ParsedItem[] =
+        (feed.items ?? [])
+          .map((item) => ({
+            guid: deriveGuid(item),
+            title: item.title ?? payload.title,
+            content: joinContentFromPaths(item, payload.contentPaths),
+            publishedAt: derivePublishedAt(item),
+            raw: item,
+          }))
+          .filter((item) => item.content.trim().length > 0) ?? [];
 
-    if (!items.length) {
-      return res
-        .status(400)
-        .json({ message: "Feed has no items with usable content" });
+      if (!items.length) {
+        return res
+          .status(400)
+          .json({ message: "Feed has no items with usable content" });
+      }
+
+      const latest = items
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0),
+        )[0];
+
+      if (!latest) {
+        return res
+          .status(400)
+          .json({ message: "Unable to find a recent item in the feed" });
+      }
+
+      const startsAt = nextStartTime(payload.timeOfDay, latest.publishedAt);
+      const endsAt = new Date(
+        startsAt.getTime() + payload.durationMinutes * 60_000,
+      );
+
+      const wordCount = tokenizeSource(latest.content).length;
+      const tree = buildTree(latest.raw, "item", "");
+
+      return res.json({
+        preview: {
+          sessionTitle: latest.title || payload.title,
+          itemTitle: latest.title,
+          itemGuid: latest.guid,
+          itemPublishedAt: latest.publishedAt.toISOString(),
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          durationMinutes: payload.durationMinutes,
+          timeOfDay: payload.timeOfDay,
+          sourceTitle: latest.title || payload.title,
+          sourceBody: latest.content,
+          wordCount,
+          autoPublish: payload.autoPublish ?? false,
+        },
+        tree,
+        selectedPaths: payload.contentPaths ?? [],
+      });
+    } catch (error) {
+      handleError(res, error);
     }
-
-    const latest = items
-      .slice()
-      .sort(
-        (a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0),
-      )[0];
-
-    if (!latest) {
-      return res
-        .status(400)
-        .json({ message: "Unable to find a recent item in the feed" });
-    }
-
-    const startsAt = nextStartTime(payload.timeOfDay, latest.publishedAt);
-    const endsAt = new Date(
-      startsAt.getTime() + payload.durationMinutes * 60_000,
-    );
-
-    const wordCount = tokenizeSource(latest.content).length;
-    const tree = buildTree(latest.raw, "item", "");
-
-    return res.json({
-      preview: {
-        sessionTitle: latest.title || payload.title,
-        itemTitle: latest.title,
-        itemGuid: latest.guid,
-        itemPublishedAt: latest.publishedAt.toISOString(),
-        startsAt: startsAt.toISOString(),
-        endsAt: endsAt.toISOString(),
-        durationMinutes: payload.durationMinutes,
-        timeOfDay: payload.timeOfDay,
-        sourceTitle: latest.title || payload.title,
-        sourceBody: latest.content,
-        wordCount,
-        autoPublish: payload.autoPublish ?? false,
-      },
-      tree,
-      selectedPaths: payload.contentPaths ?? [],
-    });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
+  },
+);
 
 router.post("/api/admin/rss-streams", requireAdmin, async (req, res) => {
   try {
@@ -367,8 +390,13 @@ router.delete("/api/admin/rss-streams/:id", requireAdmin, async (req, res) => {
     }
 
     await prisma.$transaction([
-      prisma.rssStreamCollaborator.deleteMany({ where: { streamId: req.params.id } }),
-      prisma.session.updateMany({ where: { streamId: req.params.id }, data: { streamId: null } }),
+      prisma.rssStreamCollaborator.deleteMany({
+        where: { streamId: req.params.id },
+      }),
+      prisma.session.updateMany({
+        where: { streamId: req.params.id },
+        data: { streamId: null },
+      }),
       prisma.rssPoemStream.delete({ where: { id: req.params.id } }),
     ]);
 
@@ -394,7 +422,9 @@ router.get("/api/poem-streams/:slug", async (req, res) => {
     let cursorId: string | null = null;
     if (cursorRaw) {
       try {
-        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        const parsed = JSON.parse(
+          Buffer.from(cursorRaw, "base64url").toString("utf8"),
+        );
         cursorDate = parsed.publishedAt ? new Date(parsed.publishedAt) : null;
         cursorId = typeof parsed.id === "string" ? parsed.id : null;
       } catch (err) {
@@ -414,10 +444,7 @@ router.get("/api/poem-streams/:slug", async (req, res) => {
             }
           : undefined),
       },
-      orderBy: [
-        { publishedAt: "desc" },
-        { id: "desc" },
-      ],
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take: limit + 1,
       select: {
         id: true,

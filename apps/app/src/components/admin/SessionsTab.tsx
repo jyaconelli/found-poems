@@ -122,7 +122,7 @@ function SessionsTab({ authToken }: Props) {
           return;
         }
         setSessions((prev) =>
-          append ? [...prev, ...(data.sessions ?? [])] : data.sessions ?? [],
+          append ? [...prev, ...(data.sessions ?? [])] : (data.sessions ?? []),
         );
         setNextCursor(data.nextCursor ?? null);
       } catch (_err) {
@@ -136,7 +136,9 @@ function SessionsTab({ authToken }: Props) {
 
   const resetCreateForm = () => {
     setTitle("");
-    setStartsAtLocal(formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)));
+    setStartsAtLocal(
+      formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)),
+    );
     setDurationMinutes(10);
     setSourceTitle("");
     setSourceBody("");
