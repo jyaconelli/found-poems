@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Stash untracked and unstaged changes (keep staged) while running checks
+need_pop=0
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git stash push -u -k -q >/dev/null 2>&1; then
+    need_pop=1
+  fi
+fi
+
+cleanup() {
+  if [ "$need_pop" -eq 1 ]; then
+    git stash pop -q >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+# Format, lint, and build before committing
+pnpm format || exit 1
+pnpm lint || exit 1
+pnpm build || exit 1
