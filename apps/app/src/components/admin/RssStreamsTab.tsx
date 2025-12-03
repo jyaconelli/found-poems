@@ -375,7 +375,7 @@ function RssStreamsTab({ authToken }: Props) {
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <Button
-                  size="sm"
+                  className="text-xs"
                   variant="ghost"
                   onClick={() => {
                     setEditingStream(stream);
@@ -400,7 +400,7 @@ function RssStreamsTab({ authToken }: Props) {
                   Edit
                 </Button>
                 <Button
-                  size="sm"
+                  className="text-xs"
                   variant="ghost"
                   onClick={async () => {
                     if (!window.confirm("Delete this stream?")) return;
