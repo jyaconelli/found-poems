@@ -169,13 +169,52 @@ async function uniqueSlugFromTitle(title: string) {
 
 router.get("/api/admin/rss-streams", requireAdmin, async (_req, res) => {
   try {
+    const limit = Math.min(Number(_req.query.limit) || 20, 50);
+    const cursorRaw = (_req.query.cursor as string | undefined) ?? null;
+    let cursorDate: Date | null = null;
+    let cursorId: string | null = null;
+    if (cursorRaw) {
+      try {
+        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        cursorDate = parsed.createdAt ? new Date(parsed.createdAt) : null;
+        cursorId = typeof parsed.id === "string" ? parsed.id : null;
+      } catch (err) {
+        console.warn("Invalid cursor", err);
+      }
+    }
+
     const streams = await prisma.rssPoemStream.findMany({
-      orderBy: { createdAt: "desc" },
+      where:
+        cursorDate && cursorId
+          ? {
+              OR: [
+                { createdAt: { lt: cursorDate } },
+                { createdAt: cursorDate, id: { lt: cursorId } },
+              ],
+            }
+          : undefined,
+      orderBy: [
+        { createdAt: "desc" },
+        { id: "desc" },
+      ],
+      take: limit + 1,
       include: {
         _count: { select: { collaborators: true, sessions: true } },
       },
     });
-    res.json({ streams });
+
+    const hasMore = streams.length > limit;
+    const items = hasMore ? streams.slice(0, limit) : streams;
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            createdAt: items[items.length - 1].createdAt.toISOString(),
+            id: items[items.length - 1].id,
+          }),
+        ).toString("base64url")
+      : null;
+
+    res.json({ streams: items, nextCursor });
   } catch (error) {
     handleError(res, error);
   }
@@ -349,9 +388,37 @@ router.get("/api/poem-streams/:slug", async (req, res) => {
       return res.status(404).json({ message: "Stream not found" });
     }
 
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const cursorRaw = (req.query.cursor as string | undefined) ?? null;
+    let cursorDate: Date | null = null;
+    let cursorId: string | null = null;
+    if (cursorRaw) {
+      try {
+        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        cursorDate = parsed.publishedAt ? new Date(parsed.publishedAt) : null;
+        cursorId = typeof parsed.id === "string" ? parsed.id : null;
+      } catch (err) {
+        console.warn("Invalid cursor", err);
+      }
+    }
+
     const poems = await prisma.publishedPoem.findMany({
-      where: { session: { streamId: stream.id } },
-      orderBy: { publishedAt: "desc" },
+      where: {
+        session: { streamId: stream.id },
+        ...(cursorDate && cursorId
+          ? {
+              OR: [
+                { publishedAt: { lt: cursorDate } },
+                { publishedAt: cursorDate, id: { lt: cursorId } },
+              ],
+            }
+          : undefined),
+      },
+      orderBy: [
+        { publishedAt: "desc" },
+        { id: "desc" },
+      ],
+      take: limit + 1,
       select: {
         id: true,
         title: true,
@@ -360,6 +427,17 @@ router.get("/api/poem-streams/:slug", async (req, res) => {
         sessionId: true,
       },
     });
+
+    const hasMore = poems.length > limit;
+    const items = hasMore ? poems.slice(0, limit) : poems;
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            publishedAt: items[items.length - 1].publishedAt,
+            id: items[items.length - 1].id,
+          }),
+        ).toString("base64url")
+      : null;
 
     return res.json({
       stream: {
@@ -374,7 +452,8 @@ router.get("/api/poem-streams/:slug", async (req, res) => {
         autoPublish: stream.autoPublish,
         collaboratorCount: stream._count.collaborators,
       },
-      poems,
+      poems: items,
+      nextCursor,
     });
   } catch (error) {
     handleError(res, error);

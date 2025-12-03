@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE =
   (import.meta as ImportMeta & { env: { VITE_SERVER_URL: string } }).env
@@ -51,23 +51,29 @@ function HomePage() {
   );
   const [loadingWords, setLoadingWords] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadPoems() {
+  const loadPoems = useCallback(
+    async (cursor?: string, append = false) => {
+      append ? setLoadingMore(true) : setLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/api/poems`);
+        const params = new URLSearchParams({ limit: "10" });
+        if (cursor) params.set("cursor", cursor);
+        const response = await fetch(`${API_BASE}/api/poems?${params.toString()}`);
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.message ?? "Failed to load poems");
         }
-        if (mounted) {
-          setPoems(data.poems ?? []);
-        }
-        if (mounted && (data.poems?.length ?? 0) > 0) {
+        const newPoems: Poem[] = data.poems ?? [];
+        setPoems((prev) => (append ? [...prev, ...newPoems] : newPoems));
+        setNextCursor(data.nextCursor ?? null);
+
+        if (newPoems.length > 0) {
           setLoadingWords(true);
           const wordResults = await Promise.all(
-            data.poems.map(async (poem: Poem) => {
+            newPoems.map(async (poem: Poem) => {
               const resp = await fetch(
                 `${API_BASE}/api/sessions/${poem.sessionId}/words`,
               );
@@ -80,28 +86,41 @@ function HomePage() {
               return { sessionId: poem.sessionId, words: sorted };
             }),
           );
-          if (mounted) {
-            setWordsBySession(
-              wordResults.reduce<Record<string, Word[]>>((acc, item) => {
-                acc[item.sessionId] = item.words;
-                return acc;
-              }, {}),
-            );
-            setLoadingWords(false);
-          }
+          setWordsBySession((prev) => ({
+            ...prev,
+            ...wordResults.reduce<Record<string, Word[]>>((acc, item) => {
+              acc[item.sessionId] = item.words;
+              return acc;
+            }, {}),
+          }));
+          setLoadingWords(false);
         }
       } catch (error) {
         console.error(error);
       } finally {
-        if (mounted) setLoading(false);
+        append ? setLoadingMore(false) : setLoading(false);
       }
-    }
+    },
+    [],
+  );
 
-    loadPoems();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    void loadPoems();
+  }, [loadPoems]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !nextCursor) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && nextCursor && !loadingMore) {
+          void loadPoems(nextCursor, true);
+        }
+      });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextCursor, loadingMore, loadPoems]);
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-6 bg-black px-6 py-16 text-center">
@@ -140,6 +159,10 @@ function HomePage() {
               </div>
             </article>
           ))}
+          <div ref={loadMoreRef} className="h-1" />
+          {loadingMore && (
+            <p className="text-sm text-ink-500">Loading more poems…</p>
+          )}
         </div>
       </section>
     </main>
@@ -157,21 +180,31 @@ function StreamPage({ slug }: { slug: string }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    async function loadStream() {
+  const loadStreamPoems = useCallback(
+    async (cursor?: string, append = false) => {
+      append ? setLoadingMore(true) : setLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/api/poem-streams/${slug}`);
+        const params = new URLSearchParams();
+        if (cursor) params.set("cursor", cursor);
+        const response = await fetch(
+          `${API_BASE}/api/poem-streams/${slug}?${params.toString()}`,
+        );
         const data = await response.json();
         if (!response.ok) throw new Error(data.message ?? "Failed to load stream");
-        if (!active) return;
-        setStream(data.stream);
-        setPoems(data.poems ?? []);
-        if ((data.poems?.length ?? 0) > 0) {
+
+        if (!append) setStream(data.stream);
+        const newPoems: Poem[] = data.poems ?? [];
+        setPoems((prev) => (append ? [...prev, ...newPoems] : newPoems));
+        setNextCursor(data.nextCursor ?? null);
+
+        if (newPoems.length > 0) {
           setLoadingWords(true);
           const wordResults = await Promise.all(
-            data.poems.map(async (poem: Poem) => {
+            newPoems.map(async (poem: Poem) => {
               const resp = await fetch(
                 `${API_BASE}/api/sessions/${poem.sessionId}/words`,
               );
@@ -184,28 +217,43 @@ function StreamPage({ slug }: { slug: string }) {
               return { sessionId: poem.sessionId, words: sorted };
             }),
           );
-          if (active) {
-            setWordsBySession(
-              wordResults.reduce<Record<string, Word[]>>((acc, item) => {
-                acc[item.sessionId] = item.words;
-                return acc;
-              }, {}),
-            );
-            setLoadingWords(false);
-          }
+          setWordsBySession((prev) => ({
+            ...prev,
+            ...wordResults.reduce<Record<string, Word[]>>((acc, item) => {
+              acc[item.sessionId] = item.words;
+              return acc;
+            }, {}),
+          }));
+          setLoadingWords(false);
         }
       } catch (err) {
         console.error(err);
-        if (active) setMessage("Unable to load this stream right now.");
+        setMessage("Unable to load this stream right now.");
       } finally {
-        if (active) setLoading(false);
+        append ? setLoadingMore(false) : setLoading(false);
       }
-    }
-    void loadStream();
-    return () => {
-      active = false;
-    };
-  }, [slug]);
+    },
+    [slug],
+  );
+
+  useEffect(() => {
+    void loadStreamPoems();
+  }, [loadStreamPoems]);
+
+  useEffect(() => {
+    if (!nextCursor) return;
+    const node = loadMoreRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && nextCursor && !loadingMore) {
+          void loadStreamPoems(nextCursor, true);
+        }
+      });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextCursor, loadingMore, loadStreamPoems]);
 
   const joinStream = async () => {
     if (!email.trim()) return;
@@ -316,6 +364,10 @@ function StreamPage({ slug }: { slug: string }) {
               </div>
             </article>
           ))}
+          <div ref={loadMoreRef} className="h-1" />
+          {loadingMore && (
+            <p className="text-sm text-neutral-300">Loading more poems…</p>
+          )}
         </div>
       </section>
     </main>

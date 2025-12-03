@@ -1,5 +1,5 @@
 import { Button } from "@found-poems/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants";
 import type {
   RssStreamAdminListItem,
@@ -104,6 +104,7 @@ function TreeView({
 function RssStreamsTab({ authToken }: Props) {
   const [streams, setStreams] = useState<RssStreamAdminListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -115,6 +116,8 @@ function RssStreamsTab({ authToken }: Props) {
   const [phase, setPhase] = useState<"edit" | "preview">("edit");
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [editingStream, setEditingStream] =
     useState<RssStreamAdminListItem | null>(null);
 
@@ -122,13 +125,21 @@ function RssStreamsTab({ authToken }: Props) {
 
   useEffect(() => {
     let active = true;
-    async function loadStreams() {
-      setLoading(true);
+    async function loadStreams(cursor?: string, append = false) {
+      append ? setLoadingMore(true) : setLoading(true);
+      if (!append) setNextCursor(null);
+      if (!append) setStreams([]);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE}/api/admin/rss-streams`, {
-          headers: { authorization: `Bearer ${authToken}` },
-        });
+        const params = new URLSearchParams();
+        params.set("limit", "20");
+        if (cursor) params.set("cursor", cursor);
+        const response = await fetch(
+          `${API_BASE}/api/admin/rss-streams?${params.toString()}`,
+          {
+            headers: { authorization: `Bearer ${authToken}` },
+          },
+        );
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
@@ -137,12 +148,19 @@ function RssStreamsTab({ authToken }: Props) {
               : "Failed to load streams",
           );
         }
-        if (active) setStreams(data.streams ?? []);
+        if (active) {
+          setStreams((prev) =>
+            append ? [...prev, ...(data.streams ?? [])] : data.streams ?? [],
+          );
+          setNextCursor(data.nextCursor ?? null);
+        }
       } catch (err) {
         console.error(err);
         if (active) setError("Unable to load streams. Try again.");
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          append ? setLoadingMore(false) : setLoading(false);
+        }
       }
     }
     void loadStreams();
@@ -150,6 +168,42 @@ function RssStreamsTab({ authToken }: Props) {
       active = false;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    if (!nextCursor) return;
+    const node = loadMoreRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && nextCursor && !loadingMore) {
+          // reuse load logic by calling fetch again via fetch API
+          void (async () => {
+            const params = new URLSearchParams();
+            params.set("limit", "20");
+            params.set("cursor", nextCursor);
+            try {
+              setLoadingMore(true);
+              const response = await fetch(
+                `${API_BASE}/api/admin/rss-streams?${params.toString()}`,
+                { headers: { authorization: `Bearer ${authToken}` } },
+              );
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data.message ?? "Failed");
+              setStreams((prev) => [...prev, ...(data.streams ?? [])]);
+              setNextCursor(data.nextCursor ?? null);
+            } catch (err) {
+              console.error(err);
+              setError("Unable to load more streams.");
+            } finally {
+              setLoadingMore(false);
+            }
+          })();
+        }
+      });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextCursor, authToken, loadingMore]);
 
   const updateDraft = (key: keyof Draft, value: Draft[keyof Draft]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -437,6 +491,10 @@ function RssStreamsTab({ authToken }: Props) {
             </li>
           ))}
         </ul>
+        <div ref={loadMoreRef} className="h-1" />
+        {loadingMore && (
+          <p className="px-4 py-3 text-sm text-ink-600">Loading more…</p>
+        )}
       </div>
 
       {showModal && (

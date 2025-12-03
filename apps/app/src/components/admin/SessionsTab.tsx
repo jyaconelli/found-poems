@@ -1,5 +1,5 @@
 import { Button } from "@found-poems/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE } from "../../constants";
 import type {
@@ -27,6 +27,7 @@ const STATUS_FILTERS: Array<SessionStatus | "all"> = [
 function SessionsTab({ authToken }: Props) {
   const [sessions, setSessions] = useState<AdminSession[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openPublishId, setOpenPublishId] = useState<string | null>(null);
   const [publishDraft, setPublishDraft] = useState<{
@@ -61,6 +62,8 @@ function SessionsTab({ authToken }: Props) {
   const [sourceTitle, setSourceTitle] = useState("");
   const [sourceBody, setSourceBody] = useState("");
   const [inviteList, setInviteList] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const inviteEmails = useMemo(
     () =>
@@ -93,41 +96,43 @@ function SessionsTab({ authToken }: Props) {
     setSearchParams(nextParams, { replace: true });
   };
 
-  const loadSessions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const url =
-        filter === "all"
-          ? `${API_BASE}/api/admin/sessions`
-          : `${API_BASE}/api/admin/sessions?status=${filter}`;
-      const response = await fetch(url, {
-        headers: { authorization: `Bearer ${authToken}` },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(
-          typeof data.message === "string"
-            ? data.message
-            : "Failed to load sessions",
-        );
-        setSessions([]);
-        return;
-      }
-      const sorted = (data.sessions ?? [])
-        .slice()
-        .sort((a: AdminSession, b: AdminSession) => {
-          const aTime = new Date(a.startsAt).getTime();
-          const bTime = new Date(b.startsAt).getTime();
-          return bTime - aTime;
+  const loadSessions = useCallback(
+    async (cursor?: string, append = false) => {
+      append ? setLoadingMore(true) : setLoading(true);
+      if (!append) setSessions([]);
+      if (!append) setNextCursor(null);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", "20");
+        if (filter !== "all") params.set("status", filter);
+        if (cursor) params.set("cursor", cursor);
+        const url = `${API_BASE}/api/admin/sessions?${params.toString()}`;
+        const response = await fetch(url, {
+          headers: { authorization: `Bearer ${authToken}` },
         });
-      setSessions(sorted);
-    } catch (_err) {
-      setError("Unable to load sessions.");
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken, filter]);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setError(
+            typeof data.message === "string"
+              ? data.message
+              : "Failed to load sessions",
+          );
+          if (!append) setSessions([]);
+          return;
+        }
+        setSessions((prev) =>
+          append ? [...prev, ...(data.sessions ?? [])] : data.sessions ?? [],
+        );
+        setNextCursor(data.nextCursor ?? null);
+      } catch (_err) {
+        setError("Unable to load sessions.");
+      } finally {
+        append ? setLoadingMore(false) : setLoading(false);
+      }
+    },
+    [authToken, filter],
+  );
 
   const resetCreateForm = () => {
     setTitle("");
@@ -199,6 +204,21 @@ function SessionsTab({ authToken }: Props) {
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
+
+  useEffect(() => {
+    if (!nextCursor) return;
+    const node = loadMoreRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && nextCursor && !loadingMore) {
+          void loadSessions(nextCursor, true);
+        }
+      });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextCursor, loadSessions, loadingMore]);
 
   const toggleDetails = (session: AdminSession) => {
     setOpenPublishId((prev) => {
@@ -585,6 +605,10 @@ function SessionsTab({ authToken }: Props) {
             );
           })}
         </ul>
+        <div ref={loadMoreRef} className="h-1" />
+        {loadingMore && (
+          <p className="px-4 py-3 text-sm text-ink-600">Loading more…</p>
+        )}
       </div>
     </section>
   );

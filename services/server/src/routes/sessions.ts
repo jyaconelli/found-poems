@@ -294,18 +294,59 @@ router.delete("/api/sessions/:id/publish", requireAdmin, async (req, res) => {
 router.get("/api/admin/sessions", requireAdmin, async (req, res) => {
   try {
     const status = req.query.status as SessionStatus | undefined;
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const cursorRaw = (req.query.cursor as string | undefined) ?? null;
+    let cursorDate: Date | null = null;
+    let cursorId: string | null = null;
+    if (cursorRaw) {
+      try {
+        const parsed = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+        cursorDate = parsed.startsAt ? new Date(parsed.startsAt) : null;
+        cursorId = typeof parsed.id === "string" ? parsed.id : null;
+      } catch (err) {
+        console.warn("Invalid cursor", err);
+      }
+    }
+
+    const where = {
+      ...(status ? { status } : undefined),
+      ...(cursorDate && cursorId
+        ? {
+            OR: [
+              { startsAt: { lt: cursorDate } },
+              { startsAt: cursorDate, id: { lt: cursorId } },
+            ],
+          }
+        : undefined),
+    } satisfies Parameters<typeof prisma.session.findMany>[0]["where"];
+
     const sessions = await prisma.session.findMany({
-      where: status ? { status } : undefined,
-      orderBy: { startsAt: "desc" },
+      where,
+      orderBy: [
+        { startsAt: "desc" },
+        { id: "desc" },
+      ],
       include: {
         invites: { select: { id: true, status: true } },
         source: { select: { title: true } },
         stream: { select: { id: true, title: true, slug: true } },
         poem: { select: { id: true, title: true, publishedAt: true } },
       },
+      take: limit + 1,
     });
 
-    res.json({ sessions });
+    const hasMore = sessions.length > limit;
+    const items = hasMore ? sessions.slice(0, limit) : sessions;
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            startsAt: items[items.length - 1].startsAt.toISOString(),
+            id: items[items.length - 1].id,
+          }),
+        ).toString("base64url")
+      : null;
+
+    res.json({ sessions: items, nextCursor });
   } catch (error) {
     handleError(res, error);
   }
