@@ -10,6 +10,7 @@ type ParsedItem = {
   title: string;
   content: string;
   publishedAt: Date;
+  raw: Item;
 };
 
 const parser = new RSSParser();
@@ -36,6 +37,24 @@ function deriveContent(item: Item) {
   );
 }
 
+function joinContentFromPaths(item: Item, paths: any) {
+  if (!Array.isArray(paths) || !paths.length) return deriveContent(item);
+  const values: string[] = [];
+  for (const rawPath of paths) {
+    if (typeof rawPath !== "string") continue;
+    const parts = rawPath.split("/").filter(Boolean);
+    let cursor: any = item;
+    for (const segment of parts) {
+      if (cursor === undefined || cursor === null) break;
+      cursor = cursor[segment as keyof typeof cursor];
+    }
+    if (typeof cursor === "string" || typeof cursor === "number") {
+      values.push(String(cursor));
+    }
+  }
+  return values.join("\n\n");
+}
+
 function derivePublishedAt(item: Item) {
   const raw = item.isoDate ?? item.pubDate;
   const parsed = raw ? new Date(raw) : new Date();
@@ -59,6 +78,7 @@ async function createSessionFromItem(
     maxParticipants: number;
     durationMinutes: number;
     timeOfDay: string;
+    contentPaths?: any;
     collaborators: { email: string }[];
   },
   item: ParsedItem,
@@ -139,8 +159,9 @@ export async function syncRssStreams() {
           .map((item) => ({
             guid: deriveGuid(item),
             title: item.title ?? stream.title,
-            content: deriveContent(item),
+            content: joinContentFromPaths(item, (stream as any).contentPaths),
             publishedAt: derivePublishedAt(item),
+            raw: item,
           }))
           .filter((item) => item.content.trim().length > 0) ?? [];
 

@@ -1,7 +1,11 @@
 import { Button } from "@found-poems/ui";
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE } from "../../constants";
-import type { RssStreamAdminListItem } from "../../types/rssStreams";
+import type {
+  RssStreamAdminListItem,
+  StreamValidationPreview,
+  StreamValidationTree,
+} from "../../types/rssStreams";
 
 type Props = { authToken: string };
 
@@ -13,6 +17,7 @@ type Draft = {
   durationMinutes: number;
   timeOfDay: string;
   autoPublish: boolean;
+  contentPaths: string[];
 };
 
 const emptyDraft: Draft = {
@@ -23,7 +28,78 @@ const emptyDraft: Draft = {
   durationMinutes: 30,
   timeOfDay: "09:00",
   autoPublish: true,
+  contentPaths: [],
 };
+
+type TreeViewProps = {
+  node: StreamValidationTree;
+  expanded: Set<string>;
+  toggleExpanded: (path: string) => void;
+  selectedPaths: string[];
+  toggleSelectedPath: (path: string) => void;
+};
+
+function TreeView({
+  node,
+  expanded,
+  toggleExpanded,
+  selectedPaths,
+  toggleSelectedPath,
+}: TreeViewProps) {
+  const hasChildren = (node.children?.length ?? 0) > 0;
+  const isExpanded = expanded.has(node.path) || node.path === "";
+  const selectable = node.type === "string" || node.type === "number";
+  return (
+    <div className="pl-2">
+      <div className="flex items-start gap-2 py-0.5">
+        {hasChildren ? (
+          <button
+            type="button"
+            className="text-xs text-ink-600"
+            onClick={() => toggleExpanded(node.path)}
+          >
+            {isExpanded ? "▾" : "▸"}
+          </button>
+        ) : (
+          <span className="text-xs text-ink-300">•</span>
+        )}
+        <div className="flex-1 space-y-0.5">
+          <div className="flex items-center gap-2 text-xs">
+            {selectable && (
+              <input
+                type="checkbox"
+                className="h-3 w-3"
+                checked={selectedPaths.includes(node.path)}
+                onChange={() => toggleSelectedPath(node.path)}
+              />
+            )}
+            <span className="font-mono text-ink-700">{node.key}</span>
+            <span className="text-ink-400">({node.type})</span>
+          </div>
+          {node.preview && (
+            <div className="rounded bg-ink-50 px-2 py-1 text-xs text-ink-700">
+              {node.preview}
+            </div>
+          )}
+        </div>
+      </div>
+      {hasChildren && isExpanded && (
+        <div className="border-l border-ink-100 pl-3">
+          {node.children?.map((child) => (
+            <TreeView
+              key={child.path}
+              node={child}
+              expanded={expanded}
+              toggleExpanded={toggleExpanded}
+              selectedPaths={selectedPaths}
+              toggleSelectedPath={toggleSelectedPath}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RssStreamsTab({ authToken }: Props) {
   const [streams, setStreams] = useState<RssStreamAdminListItem[]>([]);
@@ -32,6 +108,15 @@ function RssStreamsTab({ authToken }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] =
+    useState<StreamValidationPreview | null>(null);
+  const [tree, setTree] = useState<StreamValidationTree | null>(null);
+  const [phase, setPhase] = useState<"edit" | "preview">("edit");
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [editingStream, setEditingStream] =
+    useState<RssStreamAdminListItem | null>(null);
 
   const hasStreams = useMemo(() => streams.length > 0, [streams]);
 
@@ -68,9 +153,93 @@ function RssStreamsTab({ authToken }: Props) {
 
   const updateDraft = (key: keyof Draft, value: Draft[keyof Draft]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+    if (validation) setValidation(null);
+    if (phase !== "edit") setPhase("edit");
+    if (tree) setTree(null);
+  };
+
+  const toggleExpanded = (path: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectedPath = (path: string) => {
+    setSelectedPaths((prev) => {
+      const next = prev.includes(path)
+        ? prev.filter((p) => p !== path)
+        : [...prev, path];
+      setDraft((prevDraft) => ({ ...prevDraft, contentPaths: next }));
+      return next;
+    });
+  };
+
+  const resetModal = () => {
+    setShowModal(false);
+    setDraft(emptyDraft);
+    setValidation(null);
+    setTree(null);
+    setPhase("edit");
+    setSelectedPaths([]);
+    setExpanded(new Set());
+    setEditingStream(null);
+    setError(null);
+    setSaving(false);
+    setValidating(false);
+  };
+
+  const validateStream = async () => {
+    if (!draft.title.trim() || !draft.rssUrl.trim()) {
+      setError("Title and RSS link are required.");
+      return;
+    }
+    setValidating(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/rss-streams/validate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ ...draft, contentPaths: selectedPaths }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof data.message === "string"
+            ? data.message
+            : "Failed to validate stream",
+        );
+      }
+      setValidation(data.preview ?? null);
+      setTree(data.tree ?? null);
+      const nextPaths = data.selectedPaths ?? selectedPaths;
+      setSelectedPaths(nextPaths);
+      setDraft((prevDraft) => ({ ...prevDraft, contentPaths: nextPaths }));
+      setPhase("preview");
+    } catch (err) {
+      console.error(err);
+      setValidation(null);
+      setTree(null);
+      setPhase("edit");
+      setError(err instanceof Error ? err.message : "Unable to validate stream");
+    } finally {
+      setValidating(false);
+    }
   };
 
   const createStream = async () => {
+    if (!validation) {
+      setError("Run validation before creating the stream.");
+      return;
+    }
     if (!draft.title.trim() || !draft.rssUrl.trim()) {
       setError("Title and RSS link are required.");
       return;
@@ -78,13 +247,17 @@ function RssStreamsTab({ authToken }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/rss-streams`, {
-        method: "POST",
+      const url = editingStream
+        ? `${API_BASE}/api/admin/rss-streams/${editingStream.id}`
+        : `${API_BASE}/api/admin/rss-streams`;
+      const method = editingStream ? "PATCH" : "POST";
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, contentPaths: selectedPaths }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -94,13 +267,22 @@ function RssStreamsTab({ authToken }: Props) {
             : "Failed to create stream",
         );
       }
-      setStreams((prev) => [data.stream, ...prev]);
-      setShowModal(false);
-      setDraft(emptyDraft);
+      if (editingStream) {
+        setStreams((prev) =>
+          prev.map((s) => (s.id === data.stream.id ? data.stream : s)),
+        );
+      } else {
+        setStreams((prev) => [data.stream, ...prev]);
+      }
+      resetModal();
     } catch (err) {
       console.error(err);
       setError(
-        err instanceof Error ? err.message : "Unable to create stream right now",
+        err instanceof Error
+          ? err.message
+          : editingStream
+            ? "Unable to update stream right now"
+            : "Unable to create stream right now",
       );
     } finally {
       setSaving(false);
@@ -118,7 +300,21 @@ function RssStreamsTab({ authToken }: Props) {
             Create streams that convert RSS updates into live collaborations.
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>Create new stream</Button>
+        <Button
+          onClick={() => {
+            setShowModal(true);
+            setDraft(emptyDraft);
+            setValidation(null);
+            setPhase("edit");
+            setError(null);
+            setSelectedPaths([]);
+            setTree(null);
+            setExpanded(new Set());
+            setEditingStream(null);
+          }}
+        >
+          Create new stream
+        </Button>
       </div>
 
       {error && (
@@ -177,6 +373,67 @@ function RssStreamsTab({ authToken }: Props) {
               <div className="mt-2 text-xs text-ink-500">
                 Public page: /poem-streams/{stream.slug}
               </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingStream(stream);
+                    setDraft({
+                      title: stream.title,
+                      rssUrl: stream.rssUrl,
+                      maxParticipants: stream.maxParticipants,
+                      minParticipants: stream.minParticipants,
+                      durationMinutes: stream.durationMinutes,
+                      timeOfDay: stream.timeOfDay,
+                      autoPublish: stream.autoPublish,
+                      contentPaths: stream.contentPaths ?? [],
+                    });
+                    setSelectedPaths(stream.contentPaths ?? []);
+                    setValidation(null);
+                    setTree(null);
+                    setPhase("edit");
+                    setExpanded(new Set());
+                    setShowModal(true);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    if (!window.confirm("Delete this stream?")) return;
+                    try {
+                      const response = await fetch(
+                        `${API_BASE}/api/admin/rss-streams/${stream.id}`,
+                        {
+                          method: "DELETE",
+                          headers: { authorization: `Bearer ${authToken}` },
+                        },
+                      );
+                      if (!response.ok) {
+                        const data = await response.json().catch(() => ({}));
+                        throw new Error(
+                          typeof data.message === "string"
+                            ? data.message
+                            : "Failed to delete stream",
+                        );
+                      }
+                      setStreams((prev) => prev.filter((s) => s.id !== stream.id));
+                    } catch (err) {
+                      console.error(err);
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Unable to delete stream right now",
+                      );
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
@@ -184,18 +441,20 @@ function RssStreamsTab({ authToken }: Props) {
 
       {showModal && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto space-y-4 rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">
-                  New RSS Poem Stream
+                  {editingStream ? "Edit RSS Poem Stream" : "New RSS Poem Stream"}
                 </p>
-                <h3 className="text-xl font-semibold">Create stream</h3>
+                <h3 className="text-xl font-semibold">
+                  {editingStream ? "Update stream" : "Create stream"}
+                </h3>
               </div>
               <button
                 type="button"
                 className="text-sm text-ink-500"
-                onClick={() => setShowModal(false)}
+                onClick={resetModal}
               >
                 Close
               </button>
@@ -289,17 +548,128 @@ function RssStreamsTab({ authToken }: Props) {
               </label>
             </div>
 
-            <div className="flex items-center justify-end gap-3">
-              <Button variant="ghost" onClick={() => setShowModal(false)}>
+            {tree && (
+              <div className="space-y-3 rounded-xl border border-ink-200 bg-ink-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-ink-500">
+                      Latest feed item tree
+                    </p>
+                    <p className="text-sm text-ink-600">
+                      Check the parts to include (concatenated in order).
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedPaths([]);
+                      setDraft((prev) => ({ ...prev, contentPaths: [] }));
+                    }}
+                  >
+                    Clear selection
+                  </Button>
+                </div>
+
+                <div className="max-h-64 overflow-auto rounded border border-ink-200 bg-white p-3 text-sm">
+                  <TreeView
+                    node={tree}
+                    expanded={expanded}
+                    toggleExpanded={toggleExpanded}
+                    selectedPaths={selectedPaths}
+                    toggleSelectedPath={toggleSelectedPath}
+                  />
+                </div>
+              </div>
+            )}
+
+            {phase === "preview" && validation && (
+              <div className="space-y-3 rounded-xl border border-ink-200 bg-ink-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-ink-500">
+                      Validation preview
+                    </p>
+                    <h4 className="text-lg font-semibold">
+                      {validation.sessionTitle || validation.itemTitle}
+                    </h4>
+                    <p className="text-xs text-ink-600">
+                      Latest feed item published {" "}
+                      {new Date(validation.itemPublishedAt).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-ink-600">
+                      Next session starts at {" "}
+                      {new Date(validation.startsAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="space-y-1 text-right text-xs text-ink-600">
+                    <p>Duration: {validation.durationMinutes} minutes</p>
+                    <p>Time of day: {validation.timeOfDay}</p>
+                    <p>Words detected: {validation.wordCount}</p>
+                    {validation.autoPublish && (
+                      <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        Auto-publish enabled
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-ink-500">
+                    Source preview
+                  </p>
+                  <div className="max-h-60 overflow-auto rounded border border-ink-200 bg-white px-3 py-2 text-sm leading-relaxed text-ink-800">
+                    {validation.sourceBody}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button variant="ghost" onClick={resetModal}>
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                disabled={saving}
-                onClick={() => void createStream()}
-              >
-                {saving ? "Creating…" : "Create stream"}
-              </Button>
+                  {phase === "preview" ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setPhase("edit");
+                          setValidation(null);
+                          setTree(null);
+                        }}
+                      >
+                        Back to edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={validating}
+                        onClick={() => void validateStream()}
+                      >
+                        {validating ? "Updating…" : "Update preview"}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        disabled={saving}
+                        onClick={() => void createStream()}
+                      >
+                        {saving
+                          ? editingStream
+                            ? "Saving…"
+                            : "Creating…"
+                          : editingStream
+                            ? "Save changes"
+                            : "Create stream"}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="primary"
+                  disabled={validating}
+                  onClick={() => void validateStream()}
+                >
+                      {validating ? "Validating…" : "Validate stream"}
+                    </Button>
+                  )}
             </div>
           </div>
         </div>
