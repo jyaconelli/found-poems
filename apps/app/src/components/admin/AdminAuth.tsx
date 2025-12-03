@@ -2,7 +2,6 @@ import { createClient, type Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AdminScheduler from "./AdminScheduler";
-import CreateSessionPage from "./CreateSessionPage";
 import LoginPage from "./LoginPage";
 import SessionsPage from "./SessionsPage";
 import RssStreamsPage from "./RssStreamsPage";
@@ -76,7 +75,7 @@ function AdminAuth({ supabaseUrl, supabaseKey }: Props) {
         path="/login"
         element={
           session ? (
-            <Navigate to="/admin/create" replace />
+            <Navigate to="/admin/sessions" replace />
           ) : (
             <LoginPage
               onSubmit={handleLogin}
@@ -101,14 +100,13 @@ function AdminAuth({ supabaseUrl, supabaseKey }: Props) {
           )
         }
       >
-        <Route index element={<Navigate to="create" replace />} />
-        <Route path="create" element={<CreateSessionPage />} />
+        <Route index element={<Navigate to="sessions" replace />} />
         <Route path="sessions" element={<SessionsPage />} />
         <Route path="rss-streams" element={<RssStreamsPage />} />
       </Route>
       <Route
         path="*"
-        element={<Navigate to={session ? "/admin/create" : "/login"} replace />}
+        element={<Navigate to={session ? "/admin/sessions" : "/login"} replace />}
       />
     </Routes>
   );

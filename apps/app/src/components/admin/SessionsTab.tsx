@@ -7,7 +7,12 @@ import type {
   SessionStatus,
   SessionWord,
 } from "../../types/sessions";
-import { formatPst } from "../../utils/datetime";
+import {
+  formatLocalDateTimeInput,
+  formatPst,
+  toUtcISOStringFromLocalInput,
+} from "../../utils/datetime";
+import CreateSessionForm from "./CreateSessionForm";
 
 type Props = { authToken: string };
 
@@ -36,6 +41,35 @@ function SessionsTab({ authToken }: Props) {
     Record<string, SessionWord[]>
   >({});
   const [loadingWordsFor, setLoadingWordsFor] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStatus, setCreateStatus] = useState<
+    "idle" | "pending" | "success" | "error"
+  >("idle");
+  const [createError, setCreateError] = useState("");
+  const [createResult, setCreateResult] = useState<null | {
+    sessionId: string;
+    inviteCount: number;
+    wordCount: number;
+    startsAt: string;
+    endsAt: string;
+  }>(null);
+  const [title, setTitle] = useState("");
+  const [startsAtLocal, setStartsAtLocal] = useState(() =>
+    formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)),
+  );
+  const [durationMinutes, setDurationMinutes] = useState(10);
+  const [sourceTitle, setSourceTitle] = useState("");
+  const [sourceBody, setSourceBody] = useState("");
+  const [inviteList, setInviteList] = useState("");
+
+  const inviteEmails = useMemo(
+    () =>
+      inviteList
+        .split(/[\n,]/)
+        .map((v) => v.trim())
+        .filter(Boolean),
+    [inviteList],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filter = useMemo<SessionStatus | "all">(() => {
@@ -94,6 +128,73 @@ function SessionsTab({ authToken }: Props) {
       setLoading(false);
     }
   }, [authToken, filter]);
+
+  const resetCreateForm = () => {
+    setTitle("");
+    setStartsAtLocal(formatLocalDateTimeInput(new Date(Date.now() + 3_600_000)));
+    setDurationMinutes(10);
+    setSourceTitle("");
+    setSourceBody("");
+    setInviteList("");
+    setCreateStatus("idle");
+    setCreateError("");
+    setCreateResult(null);
+  };
+
+  const handleCreate = async () => {
+    if (!authToken) {
+      setCreateStatus("error");
+      setCreateError("You need to sign in again before creating a session.");
+      return false;
+    }
+    setCreateStatus("pending");
+    setCreateResult(null);
+    setCreateError("");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/sessions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          title,
+          startsAt: toUtcISOStringFromLocalInput(startsAtLocal),
+          durationMinutes,
+          source: { title: sourceTitle, body: sourceBody },
+          inviteEmails,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          typeof data.message === "string"
+            ? data.message
+            : "Unable to schedule session";
+        setCreateStatus("error");
+        setCreateError(message);
+        return false;
+      }
+
+      setCreateResult({
+        sessionId: data.sessionId,
+        inviteCount: data.inviteCount,
+        wordCount: data.wordCount,
+        startsAt: data.startsAt,
+        endsAt: data.endsAt,
+      });
+      setCreateStatus("success");
+      await loadSessions();
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCreateStatus("error");
+      setCreateError("Something went wrong. Check server logs.");
+      return false;
+    }
+  };
 
   useEffect(() => {
     void loadSessions();
@@ -232,25 +333,86 @@ function SessionsTab({ authToken }: Props) {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm font-semibold text-ink-700">Status</p>
-        <div className="flex flex-wrap gap-2">
-          {STATUS_FILTERS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => updateFilter(s as SessionStatus | "all")}
-              className={`rounded-full border px-3 py-1 text-sm transition ${
-                filter === s
-                  ? "border-ink-900 bg-ink-900 text-white"
-                  : "border-ink-200 bg-white text-ink-700 hover:border-ink-300"
-              }`}
-            >
-              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-semibold text-ink-700">Status</p>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => updateFilter(s as SessionStatus | "all")}
+                className={`rounded-full border px-3 py-1 text-sm transition ${
+                  filter === s
+                    ? "border-ink-900 bg-ink-900 text-white"
+                    : "border-ink-200 bg-white text-ink-700 hover:border-ink-300"
+                }`}
+              >
+                {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
+        <Button
+          variant="primary"
+          onClick={() => {
+            resetCreateForm();
+            setShowCreateModal(true);
+          }}
+        >
+          Create session
+        </Button>
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-ink-500">
+                  New Session
+                </p>
+                <h3 className="text-xl font-semibold">Create session</h3>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-ink-500"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <CreateSessionForm
+              title={title}
+              setTitle={setTitle}
+              startsAtLocal={startsAtLocal}
+              setStartsAtLocal={setStartsAtLocal}
+              durationMinutes={durationMinutes}
+              setDurationMinutes={setDurationMinutes}
+              inviteList={inviteList}
+              setInviteList={setInviteList}
+              sourceTitle={sourceTitle}
+              setSourceTitle={setSourceTitle}
+              sourceBody={sourceBody}
+              setSourceBody={setSourceBody}
+              status={createStatus}
+              errorMessage={createError}
+              result={createResult}
+              onSubmit={async () => {
+                const ok = await handleCreate();
+                if (ok) {
+                  resetCreateForm();
+                  setShowCreateModal(false);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-ink-200 bg-white shadow-sm">
         {loading && (

@@ -52,11 +52,8 @@ function AdminScheduler({
       </header>
 
       <div className="flex gap-2 rounded-full bg-ink-50 p-1 text-sm font-semibold text-ink-700">
-        <NavLink to="/admin/create" className={navClasses}>
-          Create Session
-        </NavLink>
         <NavLink to="/admin/sessions" className={navClasses}>
-          View Sessions
+          Sessions
         </NavLink>
         <NavLink to="/admin/rss-streams" className={navClasses}>
           RSS Poem Streams
